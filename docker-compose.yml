@@ -179,4 +179,4 @@ services:
 volumes:
   pgdata:
   redisdata:
-  storage: # tickets/ and reports/, shared with the functions (local stand-in for GCS)
+  storage: # tickets/ and reports/: written by the worker, served by booking-service

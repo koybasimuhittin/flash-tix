@@ -54,6 +54,8 @@ Open <http://localhost:8080>. Log in as the organizer `organizer@example.com` / 
 
 **Monolith mode:** `MONOLITH=1 make up` runs the same code as **one** process instead of three services, behind the same gateway (use `MONOLITH=1` with `down`/`logs` too). `make seed && make smoke` work unchanged.
 
+**The worker is internal-only:** its endpoints (`POST /tickets`, `POST /reports/daily`) have no authentication, so the gateway has no route to it. Only booking-service and `make report` (on `127.0.0.1:8091`) call it; never expose it on a public network.
+
 ### Tests and lint
 
 ```bash
@@ -112,7 +114,7 @@ Log in as the bootstrap organizer from `.env` (`organizer@example.com` / `organi
 
 ### How it talks to the backend
 
-- **One entry point.** Every request goes to the nginx gateway as a relative `/api/...` URL, so the same build works locally and in GKE.
+- **One entry point.** Every request goes to the nginx gateway as a relative `/api/...` URL, so the same build works behind any host that runs the gateway.
 - **One wrapper.** `src/api.ts` is the only code that calls `fetch`.
   - It adds `Authorization: Bearer <token>`.
   - It turns `{"detail": {"code": ...}}` errors into an `ApiError` with a `code`.

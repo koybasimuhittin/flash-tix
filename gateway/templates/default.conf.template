@@ -20,8 +20,8 @@ server {
 
     # Upstream names are resolved per request (proxy_pass with a variable) instead of once at
     # startup, so the gateway starts and serves auth/catalog even while booking-service or the
-    # frontend don't exist yet; a missing service just answers 502. Docker's DNS locally,
-    # kube-dns in GKE (GATEWAY_RESOLVER).
+    # frontend don't exist yet; a missing service just answers 502. GATEWAY_RESOLVER is
+    # the DNS server to use (Docker's embedded DNS in compose).
     resolver ${GATEWAY_RESOLVER} valid=10s ipv6=off;
 
     proxy_http_version 1.1;

@@ -23,7 +23,7 @@ from booking_svc.catalog_client import CatalogClient, CatalogUnavailable, EventI
 from booking_svc.config import BookingSettings
 from booking_svc.events import EventPublisher, build_payload, publish_with_retries
 from booking_svc.holds import HoldStore
-from booking_svc.models import Booking, BookingSeat
+from booking_svc.models import SEAT_UNIQUE_CONSTRAINT, Booking, BookingSeat
 from booking_svc.schemas import (
     AvailabilityOut,
     BookingOut,
@@ -78,6 +78,16 @@ def _error(status_code: int, code: str, seats: list[str] | None = None) -> HTTPE
     if seats is not None:
         detail["seats"] = seats
     return HTTPException(status_code, detail=detail)
+
+
+def is_seat_conflict(exc: IntegrityError) -> bool:
+    """True only when the seat uniqueness constraint rejected the insert (a seat sold twice)."""
+    original = exc.orig
+    cause = getattr(original, "__cause__", None)  # asyncpg's exception behind SQLAlchemy's
+    name = getattr(cause, "constraint_name", None) or getattr(original, "constraint_name", None)
+    if name is not None:
+        return name == SEAT_UNIQUE_CONSTRAINT
+    return SEAT_UNIQUE_CONSTRAINT in str(original)
 
 
 async def _sold_seats(
@@ -222,6 +232,8 @@ async def purchase(
         async with state.sessionmaker() as session, session.begin():
             session.add(booking)
     except IntegrityError as exc:
+        if not is_seat_conflict(exc):
+            raise  # any other integrity problem is a bug, not "seat already sold": 500
         # Redis said the seats were held, the database says sold: bring Redis back in line.
         taken = await _sold_seats(state, event.id, among=body.seats)
         if taken:
@@ -252,7 +264,8 @@ async def my_bookings(
                 .limit(50)
             )
         ).all()
-    return [await _booking_out(state, booking) for booking in bookings]
+    # Up to 50 "does the ticket exist?" checks: run them concurrently, not one after another.
+    return list(await asyncio.gather(*(_booking_out(state, booking) for booking in bookings)))
 
 
 def _parse_event_ids(raw: str) -> list[int]:
@@ -275,7 +288,7 @@ async def event_stats(
     so the page doesn't hit the per-user rate limit. Any organizer may read any event
     (single-organizer simplification). Unknown ids count as zeros."""
     ids = _parse_event_ids(event_ids)
-    for event_id in ids:
+    for event_id in await state.holds.unloaded(ids):  # usually none: one round trip, no loads
         await _ensure_sold_loaded(state, event_id)
     counts = await state.holds.counts(ids, now_ms())
     return [

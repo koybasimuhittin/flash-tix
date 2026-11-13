@@ -55,8 +55,7 @@ def bookings_schema() -> None:
             pytest.fail(f"REQUIRE_DB=1 but postgres on {DB[0]}:{DB[1]} is unreachable")
         pytest.skip(f"local postgres on {DB[0]}:{DB[1]} is not running")
 
-    from booking_svc.main import SCHEMA_LOCK_KEY
-    from booking_svc.models import Base
+    from booking_svc.models import SCHEMA_LOCK_KEY, Base
     from flashtix_common.db import init_schema, make_engine
 
     async def create() -> None:

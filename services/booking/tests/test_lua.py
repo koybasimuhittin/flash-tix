@@ -5,7 +5,14 @@ import socket
 
 import pytest
 
-from booking_svc.holds import HoldStore, hold_hash_key, hold_zset_key, sold_key, sold_loaded_key
+from booking_svc.holds import (
+    SOLD_MARKER_TTL_SECONDS,
+    HoldStore,
+    hold_hash_key,
+    hold_zset_key,
+    sold_key,
+    sold_loaded_key,
+)
 from flashtix_common.redis import make_redis
 
 # Database 15, not the dev stack's 0, so tests never mix with local data.
@@ -135,3 +142,21 @@ async def test_sold_cache_is_rebuilt_from_the_database(store, event):
     await store.ensure_sold_loaded(event, load)
     assert calls == [event, event]
     assert await store.hold(event, 1, ["C-1-1"], NOW, LATER) == ["C-1-1"]
+
+
+async def test_unloaded_lists_only_events_without_a_sold_cache(store, event):
+    other = event + 1
+
+    async def load(event_id: int) -> list[str]:
+        return []
+
+    await store.ensure_sold_loaded(event, load)
+    assert await store.unloaded([event, other]) == [other]
+
+
+async def test_sold_cache_marker_expires(store, event):
+    async def load(event_id: int) -> list[str]:
+        return []
+
+    await store.ensure_sold_loaded(event, load)  # e.g. an id that belongs to no event
+    assert 0 < await store.redis.ttl(sold_loaded_key(event)) <= SOLD_MARKER_TTL_SECONDS

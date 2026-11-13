@@ -8,7 +8,7 @@ from booking_svc.catalog_client import CatalogClient
 from booking_svc.config import BookingSettings
 from booking_svc.events import make_publisher
 from booking_svc.holds import HoldStore
-from booking_svc.models import Base
+from booking_svc.models import SCHEMA_LOCK_KEY, Base
 from booking_svc.routes import BookingState, router
 from booking_svc.storage import make_storage
 from flashtix_common.db import init_schema, make_engine, make_sessionmaker
@@ -17,8 +17,6 @@ from flashtix_common.logging import setup_logging
 from flashtix_common.middleware import RequestContextMiddleware
 from flashtix_common.redis import make_redis
 from flashtix_common.security import TokenVerifier
-
-SCHEMA_LOCK_KEY = 1003
 
 
 @asynccontextmanager
@@ -74,6 +72,3 @@ def create_app(catalog_transport: httpx.AsyncBaseTransport | None = None) -> Fas
 
     app.include_router(make_health_router({"db": database_ready, "redis": redis_ready}))
     return app
-
-
-app = create_app()

@@ -291,7 +291,7 @@ export default function EventPage() {
         </div>
       </section>
 
-      <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] gap-8 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-start gap-8 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="rounded-xl border border-border bg-card p-4 sm:p-6" aria-label="Seat map">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <SeatLegend />

@@ -106,7 +106,8 @@ services:
       HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-600}
       MAX_SEATS_PER_BOOKING: ${MAX_SEATS_PER_BOOKING:-6}
       MOCK_PAYMENT_LATENCY_MS: ${MOCK_PAYMENT_LATENCY_MS:-0}
-      EVENT_BACKEND: log # http (ticket-pdf function) arrives later
+      EVENT_BACKEND: http # local stand-in for Pub/Sub push: POSTs the push envelope to ticket-pdf
+      TICKET_FUNCTION_URL: http://ticket-pdf:8080/
       STORAGE_BACKEND: local
       LOCAL_STORAGE_DIR: /data/storage
     volumes:
@@ -119,7 +120,24 @@ services:
         condition: service_healthy
       catalog-service:
         condition: service_healthy
+      ticket-pdf:
+        condition: service_healthy
     healthcheck: *service-healthcheck
+
+  ticket-pdf: # the Cloud Function, run locally with functions-framework
+    build:
+      context: ./functions/ticket_pdf
+      dockerfile: Dockerfile.local
+    environment:
+      STORAGE_BACKEND: local
+      LOCAL_STORAGE_DIR: /data/storage
+    volumes:
+      - storage:/data/storage
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   frontend:
     build: ./frontend

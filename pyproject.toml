@@ -15,7 +15,7 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", 
 known-first-party = ["flashtix_common", "auth_svc", "catalog_svc", "booking_svc"]
 
 [tool.pytest.ini_options]
-testpaths = ["services"]
+testpaths = ["services", "functions"]
 # Each service's package lives in services/<svc>/<svc>_svc; add a line per new service.
 pythonpath = ["services/auth", "services/catalog", "services/booking"]
 # Services have test files with the same names; importlib mode keeps them apart.

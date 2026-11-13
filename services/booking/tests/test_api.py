@@ -260,6 +260,59 @@ def test_purchase_publishes_booking_confirmed(client):
     assert published[0]["event"]["id"] == event
 
 
+def bought_booking(client, seat="A-4-1") -> tuple[int, dict]:
+    event, user = make_event(), new_user()
+    assert hold(client, user, event, [seat]).status_code == 200
+    response = purchase(client, user, event, [seat])
+    assert response.status_code == 201
+    return user, response.json()
+
+
+def test_ticket_is_pending_until_the_pdf_exists(client, storage_dir):
+    user, booking = bought_booking(client)
+    url = f"/api/booking/{booking['id']}/ticket"
+    pending = client.get(url, headers=auth(user))
+    assert (pending.status_code, pending.json()) == (202, {"status": "pending"})
+
+    (storage_dir / "tickets").mkdir(exist_ok=True)
+    (storage_dir / "tickets" / f"{booking['id']}.pdf").write_bytes(b"%PDF-1.4 test")
+    ready = client.get(url, headers=auth(user))
+    assert ready.status_code == 200
+    assert ready.headers["content-type"] == "application/pdf"
+    assert f'filename="flashtix-{booking["id"]}.pdf"' in ready.headers["content-disposition"]
+    assert ready.content == b"%PDF-1.4 test"
+    assert client.get(f"/api/booking/{booking['id']}", headers=auth(user)).json()["ticket_ready"]
+
+
+def test_ticket_of_someone_else_is_404(client):
+    _, booking = bought_booking(client)
+    other = client.get(f"/api/booking/{booking['id']}/ticket", headers=auth(new_user()))
+    assert other.status_code == 404
+
+
+def test_republish_by_owner_or_organizer(client):
+    published = []
+
+    class Recorder:
+        async def publish(self, payload: dict) -> None:
+            published.append(payload["booking_id"])
+
+        async def aclose(self) -> None:
+            return None
+
+    user, booking = bought_booking(client)
+    url = f"/api/booking/{booking['id']}/republish"
+    original = state(client).publisher
+    state(client).publisher = Recorder()
+    try:
+        assert client.post(url, headers=auth(user)).status_code == 202
+        assert client.post(url, headers=auth(new_user(), role="organizer")).status_code == 202
+        assert client.post(url, headers=auth(new_user())).status_code == 404
+    finally:
+        state(client).publisher = original
+    assert published == [booking["id"], booking["id"]]
+
+
 def test_expired_hold_cannot_be_bought(client):
     event, u1, u2 = make_event(), new_user(), new_user()
     hold(client, u1, event, ["A-1-1"])

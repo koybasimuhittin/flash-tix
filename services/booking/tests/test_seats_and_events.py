@@ -1,10 +1,13 @@
+import base64
+import json
 import uuid
 from datetime import UTC, datetime
 
+import httpx
 import pytest
 
 from booking_svc.catalog_client import parse_event
-from booking_svc.events import build_payload, publish_with_retries
+from booking_svc.events import HttpPushPublisher, build_payload, publish_with_retries
 from booking_svc.models import Booking, BookingSeat
 from booking_svc.seats import (
     SeatRequestError,
@@ -117,3 +120,36 @@ async def test_publish_gives_up_without_raising():
     publisher = FlakyPublisher(failures=5)
     assert await publish_with_retries(publisher, {"booking_id": "b"}, base_delay_s=0) is False
     assert publisher.calls == 3
+
+
+@pytest.mark.anyio
+async def test_http_push_publisher_sends_the_pubsub_push_envelope():
+    received = []
+
+    def function(request: httpx.Request) -> httpx.Response:
+        received.append(json.loads(request.content))
+        return httpx.Response(204)
+
+    payload = {"booking_id": "b-1", "request_id": "req-9", "seats": []}
+    publisher = HttpPushPublisher("http://ticket-pdf:8080/", httpx.MockTransport(function))
+    await publisher.publish(payload)
+    await publisher.aclose()
+
+    message = received[0]["message"]
+    assert json.loads(base64.b64decode(message["data"])) == payload
+    assert message["attributes"] == {
+        "type": "booking.confirmed",
+        "version": "1",
+        "request_id": "req-9",
+    }
+    assert received[0]["subscription"]
+
+
+@pytest.mark.anyio
+async def test_http_push_publisher_raises_on_failure_so_it_is_retried():
+    publisher = HttpPushPublisher(
+        "http://ticket-pdf:8080/", httpx.MockTransport(lambda _: httpx.Response(500))
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        await publisher.publish({"booking_id": "b-1", "seats": []})
+    await publisher.aclose()

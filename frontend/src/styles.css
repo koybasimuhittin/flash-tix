@@ -1,383 +1,166 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/archivo/wdth.css";
+
+/*
+ * FlashTix "box office" tokens. Raw palette first, then the semantic names that
+ * shadcn/ui components use. Change a color here and every component follows.
+ */
 :root {
-  --bg: #f6f7fb;
-  --surface: #ffffff;
-  --text: #1c1f2a;
-  --muted: #667085;
-  --border: #e3e6ee;
-  --primary: #4f46e5;
-  --primary-text: #ffffff;
-  --danger: #c62828;
-  --danger-bg: #fdecec;
-  --info-bg: #e8f1fd;
-  --info: #1d4f91;
+  --ink: #17183b; /* house navy: text, primary buttons, the hero band */
+  --ink-2: #24265a; /* split-flap tiles on the ink band */
+  --paper: #f5f6fa; /* page background */
+  --stub: #ffc83d; /* marigold ticket stock: your seats, Pay */
+  --sold: #d93b3b; /* sold seats and sales bars */
+  --line: #dadce8; /* hairlines */
+  --muted-ink: #5e6283;
 
-  /* Seat colors */
-  --seat-available: #cfe8d6;
-  --seat-available-border: #3f9b5c;
-  --seat-selected: #4f46e5;
-  --seat-mine: #f59e0b;
-  --seat-held: #c9cdd6;
-  --seat-sold: #475066;
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: #ffffff;
+  --card-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: #ffffff;
+  --accent: var(--stub);
+  --accent-foreground: var(--ink);
+  --muted: #ecedf4;
+  --muted-foreground: var(--muted-ink);
+  --border: var(--line);
+  --input: #c9cbdb;
+  --ring: #4b4fa8;
+  --radius: 0.5rem;
 
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: var(--text);
-  line-height: 1.45;
+  /* Seat map */
+  --seat-open: #ffffff;
+  --seat-open-edge: #9a9db8;
+  --seat-selected: var(--ink);
+  --seat-mine: var(--stub);
+  --seat-held: #c9cbd9;
+  --seat-sold: var(--sold);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12141b;
-    --surface: #1b1e28;
-    --text: #e7e9f0;
-    --muted: #9aa1b2;
-    --border: #2c3040;
-    --primary: #7c74ff;
-    --danger: #ff8a80;
-    --danger-bg: #3a1d1d;
-    --info-bg: #1b2a40;
-    --info: #9cc3ff;
-    --seat-available: #1f4a2d;
-    --seat-available-border: #4cbb70;
-    --seat-held: #444a5a;
-    --seat-sold: #8a91a5;
+@theme inline {
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-paper: var(--paper);
+  --color-stub: var(--stub);
+  --color-sold: var(--sold);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "tnum" 0;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 
-* {
-  box-sizing: border-box;
+/* Condensed, heavy Archivo: event titles, the wordmark and countdown digits. */
+@utility font-poster {
+  font-stretch: 68%;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 0.95;
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
+@utility tabular {
+  font-variant-numeric: tabular-nums;
 }
 
-a {
-  color: var(--primary);
-}
-
-h1 {
-  font-size: 1.6rem;
-  margin: 0 0 0.75rem;
-}
-
-h2 {
-  font-size: 1.15rem;
-  margin: 0 0 0.4rem;
-}
-
-button,
-input {
-  font: inherit;
-}
-
-input {
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  width: 100%;
-}
-
-button {
-  padding: 0.5rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-button.primary {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--primary-text);
-}
-
-.link-button {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--primary);
-}
-
-.muted {
-  color: var(--muted);
-}
-
-.small {
-  font-size: 0.85rem;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.brand {
-  font-weight: 700;
-  font-size: 1.2rem;
-  text-decoration: none;
-  color: var(--text);
-}
-
-.nav {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.nav a {
-  text-decoration: none;
-  color: var(--muted);
-}
-
-.nav a.active {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1.25rem 1rem 3rem;
-}
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1rem;
-}
-
-.form {
-  max-width: 400px;
-  margin: 2rem auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.form label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.alert {
-  padding: 0.6rem 0.8rem;
-  border-radius: 6px;
-  margin: 0 0 0.75rem;
-}
-
-.alert-error {
-  background: var(--danger-bg);
-  color: var(--danger);
-}
-
-.alert-info {
-  background: var(--info-bg);
-  color: var(--info);
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.badge-green {
-  background: #dcf5e3;
-  color: #1e7a3c;
-}
-
-.badge-amber {
-  background: #fff1d6;
-  color: #8a5a00;
-}
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.filters input {
-  flex: 1 1 180px;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1rem;
-}
-
-.event-card {
-  text-decoration: none;
-  color: inherit;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.event-card p {
-  margin: 0;
-}
-
-.event-card:hover {
-  border-color: var(--primary);
-}
-
-.prices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 1.25rem;
-  padding: 0;
-  list-style: none;
-}
-
-.countdown {
-  font-size: 1.25rem;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  background: var(--info-bg);
-  color: var(--info);
-  margin-bottom: 1rem;
-}
-
-.event-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 1.25rem;
-  align-items: start;
-}
-
-@media (max-width: 800px) {
-  .event-body {
-    grid-template-columns: minmax(0, 1fr);
+/*
+ * Perforation between the two halves of a ticket: a dashed rule with a half-circle
+ * notch at each end, cut out in the page background color.
+ */
+@utility perforation-x {
+  position: relative;
+  border-top: 2px dashed var(--line);
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    top: -9px;
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    background: var(--background);
+  }
+  &::before {
+    left: -9px;
+  }
+  &::after {
+    right: -9px;
   }
 }
 
-.panel {
-  position: sticky;
-  top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+@utility perforation-y {
+  position: relative;
+  border-left: 2px dashed var(--line);
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    left: -9px;
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    background: var(--background);
+  }
+  &::before {
+    top: -9px;
+  }
+  &::after {
+    bottom: -9px;
+  }
 }
 
-.panel p {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.timer {
-  font-weight: 600;
-}
-
-.timer-low {
-  color: var(--danger);
-}
-
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 1rem;
-  padding: 0;
-  margin: 0 0 0.75rem;
-  list-style: none;
-  font-size: 0.85rem;
-}
-
-.legend li {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.seatmap {
-  overflow-x: auto;
-}
-
-.stage {
-  text-align: center;
-  padding: 0.35rem;
-  margin-bottom: 1rem;
-  border-radius: 4px;
-  background: var(--border);
-  color: var(--muted);
-  font-size: 0.8rem;
-  letter-spacing: 0.3em;
-}
-
-.section {
-  margin-bottom: 1.25rem;
-}
-
-.section h3 {
-  font-size: 0.95rem;
-  margin: 0 0 0.4rem;
-}
-
-.rows {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.row-label {
-  width: 1.6rem;
-  font-size: 0.7rem;
-  color: var(--muted);
-  text-align: right;
-  padding-right: 0.25rem;
-  flex-shrink: 0;
-}
+/* ---------- Seat map ---------- */
 
 .seat {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  padding: 0;
-  border-radius: 3px;
-  border: 1px solid transparent;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
-}
-
-button.seat:disabled {
-  opacity: 1;
-  cursor: default;
+  border-radius: 5px 5px 3px 3px; /* a seat back, not a dot */
+  border: 1.5px solid transparent;
+  transition:
+    background-color 300ms ease,
+    border-color 300ms ease,
+    transform 150ms ease;
 }
 
 .seat-available {
-  background: var(--seat-available);
-  border-color: var(--seat-available-border);
+  background: var(--seat-open);
+  border-color: var(--seat-open-edge);
 }
 
 button.seat-available:not(:disabled):hover {
-  background: var(--seat-available-border);
+  border-color: var(--ink);
+  transform: translateY(-1px);
 }
 
 .seat-selected {
@@ -387,161 +170,80 @@ button.seat-available:not(:disabled):hover {
 
 .seat-mine {
   background: var(--seat-mine);
-  border-color: var(--seat-mine);
+  border-color: #d9a21c;
 }
 
 .seat-held {
-  background: var(--seat-held);
+  background: repeating-linear-gradient(135deg, var(--seat-held) 0 3px, #e3e4ee 3px 6px);
   border-color: var(--seat-held);
 }
 
 .seat-sold {
   background: var(--seat-sold);
   border-color: var(--seat-sold);
+  animation: seat-sold 450ms ease-out;
 }
 
-.bookings {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+/* The moment a seat sells: a short pop, so the sell-out wave reads on video. */
+@keyframes seat-sold {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
-.booking {
-  display: flex;
-  justify-content: space-between;
+button.seat:disabled {
+  cursor: default;
+}
+
+/* ---------- Split-flap countdown ---------- */
+
+.flap {
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.booking p {
-  margin: 0.15rem 0;
-}
-
-/* Organizer pages */
-
-.page-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.page-head h1 {
-  margin: 0;
-}
-
-a.button {
-  display: inline-block;
-  padding: 0.5rem 0.9rem;
+  justify-content: center;
+  width: 0.78em;
+  height: 1.12em;
   border-radius: 6px;
-  text-decoration: none;
+  background: var(--ink-2);
+  color: #ffffff;
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.25);
+  animation: flap-in 320ms cubic-bezier(0.3, 0.7, 0.4, 1);
+  transform-origin: 50% 50%;
 }
 
-a.button.primary {
-  background: var(--primary);
-  color: var(--primary-text);
+/* The hinge line across the middle of each tile. */
+.flap::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.5px;
+  background: var(--ink);
 }
 
-.table-wrap {
-  overflow-x: auto;
+@keyframes flap-in {
+  from {
+    transform: rotateX(-90deg);
+  }
+  to {
+    transform: rotateX(0);
+  }
 }
 
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.92rem;
-}
-
-.table th,
-.table td {
-  text-align: left;
-  padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-
-.table th {
-  color: var(--muted);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.table .num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.bar {
-  width: 100px;
-  height: 8px;
-  border-radius: 4px;
-  background: var(--border);
-  overflow: hidden;
-}
-
-.bar > div {
-  height: 100%;
-  background: var(--primary);
-}
-
-.report {
-  margin-top: 1.25rem;
-  max-width: 480px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.report p {
-  margin: 0;
-}
-
-.inline {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.inline input {
-  width: auto;
-}
-
-.create-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.create-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.85rem;
-}
-
-textarea {
-  font: inherit;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-}
-
-.sections-table input {
-  min-width: 70px;
-}
-
-.code-input {
-  width: 4.5rem;
-  text-transform: uppercase;
+@media (prefers-reduced-motion: reduce) {
+  .flap,
+  .seat-sold {
+    animation: none;
+  }
+  .seat {
+    transition: none;
+  }
 }

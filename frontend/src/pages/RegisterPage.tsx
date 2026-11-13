@@ -1,8 +1,14 @@
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ApiError, errorMessage } from "../api";
-import { useAuth } from "../auth";
+import { ApiError, errorMessage } from "@/api";
+import { useAuth } from "@/auth";
+import { AuthCard } from "@/components/AuthCard";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { safeNext } from "./LoginPage";
 
 export default function RegisterPage() {
@@ -25,7 +31,7 @@ export default function RegisterPage() {
     } catch (err) {
       setError(
         err instanceof ApiError && err.code === "EMAIL_TAKEN"
-          ? "An account with this email already exists."
+          ? "An account with this email already exists. Log in instead."
           : errorMessage(err),
       );
     } finally {
@@ -34,34 +40,45 @@ export default function RegisterPage() {
   }
 
   return (
-    <form className="card form" onSubmit={submit}>
-      <h1>Create an account</h1>
-      <label>
-        Name
-        <input required maxLength={100} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
-      <label>
-        Email
-        <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      </label>
-      <label>
-        Password <span className="muted">(at least 8 characters)</span>
-        <input
+    <AuthCard
+      title="Sign up"
+      subtitle="One account for every ticket you buy."
+      onSubmit={submit}
+      footer={
+        <>
+          Already have an account? <Link className="font-semibold text-foreground underline-offset-4 hover:underline" to={`/login${params.size ? `?${params}` : ""}`}>Log in</Link>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="name">Name</Label>
+        <Input id="name" required maxLength={100} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
           type="password"
           required
           minLength={8}
           autoComplete="new-password"
+          aria-describedby="password-hint"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-      </label>
-      {error && <p className="alert alert-error">{error}</p>}
-      <button className="primary" disabled={busy}>
-        {busy ? "Creating account…" : "Register"}
-      </button>
-      <p className="muted">
-        Already registered? <Link to={`/login${params.size ? `?${params}` : ""}`}>Log in</Link>
-      </p>
-    </form>
+        <p id="password-hint" className="text-xs text-muted-foreground">
+          At least 8 characters.
+        </p>
+      </div>
+      {error && <Alert variant="error">{error}</Alert>}
+      <Button type="submit" size="lg" disabled={busy}>
+        {busy && <Loader2 className="animate-spin" />}
+        {busy ? "Creating account…" : "Create account"}
+      </Button>
+    </AuthCard>
   );
 }

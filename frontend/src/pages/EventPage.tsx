@@ -1,12 +1,18 @@
+import { AlertCircle, CalendarDays, Clock, Info, Loader2, MapPin } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { ApiError, api, errorMessage } from "../api";
-import { useAuth } from "../auth";
-import SeatMap, { SeatLegend } from "../components/SeatMap";
-import { clockOffset as computeClockOffset, formatDateTime, formatDuration, formatPrice, toMillis } from "../format";
-import { seatState, totalPrice } from "../seats";
-import { useNow, usePolling } from "../hooks";
-import type { Availability, Booking, EventDetail, Hold } from "../types";
+import { ApiError, api, errorMessage } from "@/api";
+import { useAuth } from "@/auth";
+import SeatMap, { SeatLegend } from "@/components/SeatMap";
+import { SplitFlap } from "@/components/SplitFlap";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { clockOffset as computeClockOffset, formatDateTime, formatDuration, formatPrice, toMillis } from "@/format";
+import { useNow, usePolling } from "@/hooks";
+import { cn } from "@/lib/utils";
+import { sectionOf, seatState, totalPrice } from "@/seats";
+import type { Availability, Booking, EventDetail, Hold, Section } from "@/types";
 
 /** Same as the backend's MAX_SEATS_PER_BOOKING. */
 const MAX_SEATS = 6;
@@ -219,91 +225,196 @@ export default function EventPage() {
     }
   }
 
-  if (loadError) return <p className="alert alert-error">{loadError}</p>;
-  if (!event) return <p className="muted">Loading…</p>;
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16 text-center">
+        <h1 className="font-poster text-3xl">{loadError}</h1>
+        <Button variant="outline" className="mt-6" onClick={() => navigate("/")}>
+          Back to events
+        </Button>
+      </div>
+    );
+  }
+  if (!event) {
+    return (
+      <div className="flex justify-center py-24 text-muted-foreground">
+        <Loader2 className="size-6 animate-spin" aria-label="Loading" />
+      </div>
+    );
+  }
+
+  const soldCount = availability?.sold.length ?? 0;
+  const soldPct = event.capacity ? Math.min(100, (soldCount / event.capacity) * 100) : 0;
+  const stubSeats = activeHold?.seats ?? selected;
 
   return (
-    <div className="event-page">
-      <section className="event-head">
-        <h1>{event.title}</h1>
-        <p className="muted">
-          {event.venue} · {event.city} · {formatDateTime(event.starts_at)}
-        </p>
-        {event.description && <p>{event.description}</p>}
-        <ul className="prices">
-          {event.sections.map((s) => (
-            <li key={s.code}>
-              <strong>{s.code}</strong> {s.name}: {formatPrice(s.price_cents)}
-            </li>
-          ))}
-        </ul>
+    <>
+      {/* Hero: the ink band. Before the sale it carries the split-flap countdown. */}
+      <section className="bg-ink text-white">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 md:grid-cols-[1fr_auto] md:items-end md:py-14">
+          <div className="min-w-0">
+            <h1 className="font-poster text-5xl text-balance sm:text-6xl lg:text-7xl">{event.title}</h1>
+            <div className="mt-5 flex flex-col gap-1.5 text-sm text-white/75 sm:flex-row sm:gap-6">
+              <span className="inline-flex items-center gap-2">
+                <CalendarDays className="size-4 text-stub" /> {formatDateTime(event.starts_at)}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <MapPin className="size-4 text-stub" /> {event.venue}, {event.city}
+              </span>
+            </div>
+            {event.description && <p className="mt-4 max-w-prose text-white/70">{event.description}</p>}
+          </div>
+
+          {salesOpen ? (
+            <div className="md:w-72">
+              <p className="inline-flex items-center gap-2 text-sm font-semibold text-stub">
+                <span className="relative flex size-2.5">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-stub opacity-75 motion-reduce:hidden" />
+                  <span className="relative inline-flex size-2.5 rounded-full bg-stub" />
+                </span>
+                On sale now
+              </p>
+              <p className="tabular mt-2 text-3xl font-bold">
+                {soldCount} <span className="text-lg font-medium text-white/60">of {event.capacity} sold</span>
+              </p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15">
+                <div className="h-full rounded-full bg-sold transition-[width] duration-700" style={{ width: `${soldPct}%` }} />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="mb-3 text-sm text-white/75">Sales open in</p>
+              <SplitFlap seconds={(salesOpenAt - serverNow) / 1000} />
+              <p className="mt-3 text-xs text-white/55">{formatDateTime(event.sales_open_at)}</p>
+            </div>
+          )}
+        </div>
       </section>
 
-      {!salesOpen && (
-        <div className="countdown">
-          Sales open in <strong>{formatDuration((salesOpenAt - serverNow) / 1000)}</strong>
-          <span className="muted"> ({formatDateTime(event.sales_open_at)})</span>
-        </div>
-      )}
-
-      <div className="event-body">
-        <div>
-          <SeatLegend />
-          {!availability && <p className="muted">Loading seat availability…</p>}
+      <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] gap-8 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="rounded-xl border border-border bg-card p-4 sm:p-6" aria-label="Seat map">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <SeatLegend />
+            {!availability && (
+              <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="size-3.5 animate-spin" /> Loading seats
+              </span>
+            )}
+          </div>
           <SeatMap
             sections={event.sections}
             stateOf={stateOf}
             onToggle={toggle}
             disabled={!salesOpen || !availability || activeHold !== null || busy}
           />
-        </div>
+        </section>
 
-        <aside className="card panel">
-          {notice && <p className={`alert alert-${notice.kind}`}>{notice.text}</p>}
-          {activeHold ? (
-            <>
-              <h2>Your hold</h2>
-              <p>{activeHold.seats.join(", ")}</p>
-              <p>
-                Total <strong>{formatPrice(priceOf(activeHold.seats))}</strong>
-              </p>
-              {holdSecondsLeft !== null && (
-                <p className={holdSecondsLeft < 60 ? "timer timer-low" : "timer"}>
-                  Hold expires in {formatDuration(holdSecondsLeft)}
-                </p>
-              )}
-              <button className="primary" onClick={pay} disabled={busy}>
-                {busy ? "Processing…" : "Pay (mock)"}
-              </button>
-              <button onClick={release} disabled={busy}>
-                Release seats
-              </button>
-            </>
-          ) : (
-            <>
-              <h2>Selected seats</h2>
-              {selected.length === 0 ? (
-                <p className="muted">
-                  {salesOpen ? `Click seats on the map (up to ${MAX_SEATS}).` : "Seats can be selected once sales open."}
-                </p>
-              ) : (
-                <>
-                  <p>{selected.join(", ")}</p>
-                  <p>
-                    Total <strong>{formatPrice(priceOf(selected))}</strong>
+        <aside className="lg:sticky lg:top-24 lg:self-start">
+          <TicketStub
+            title={activeHold ? "Your seats are held" : "Your seats"}
+            seats={stubSeats}
+            sections={event.sections}
+            total={formatPrice(priceOf(stubSeats))}
+          >
+            {notice && (
+              <Alert variant={notice.kind}>
+                {notice.kind === "error" ? <AlertCircle /> : <Info />}
+                <span>{notice.text}</span>
+              </Alert>
+            )}
+            {activeHold ? (
+              <>
+                {holdSecondsLeft !== null && (
+                  <p
+                    className={cn(
+                      "tabular inline-flex items-center gap-2 text-sm font-semibold",
+                      holdSecondsLeft < 60 && "text-sold",
+                    )}
+                  >
+                    <Clock className="size-4" /> Hold expires in {formatDuration(holdSecondsLeft)}
                   </p>
-                </>
-              )}
-              <button
-                className="primary"
-                onClick={holdSelected}
-                disabled={busy || selected.length === 0 || !salesOpen}
-              >
-                {busy ? "Holding…" : user ? `Hold ${selected.length || ""} seat${selected.length === 1 ? "" : "s"}` : "Log in to hold seats"}
-              </button>
-            </>
+                )}
+                <Button variant="accent" size="lg" onClick={pay} disabled={busy}>
+                  {busy && <Loader2 className="animate-spin" />}
+                  {busy ? "Processing…" : "Pay (mock)"}
+                </Button>
+                <Button variant="ghost" onClick={release} disabled={busy}>
+                  Release seats
+                </Button>
+              </>
+            ) : (
+              <Button size="lg" onClick={holdSelected} disabled={busy || selected.length === 0 || !salesOpen}>
+                {busy && <Loader2 className="animate-spin" />}
+                {busy
+                  ? "Holding…"
+                  : user
+                    ? `Hold ${selected.length || ""} seat${selected.length === 1 ? "" : "s"}`
+                    : "Log in to hold seats"}
+              </Button>
+            )}
+          </TicketStub>
+          {!activeHold && selected.length === 0 && (
+            <p className="mt-3 px-1 text-sm text-muted-foreground">
+              {salesOpen
+                ? `Pick up to ${MAX_SEATS} seats on the map. A hold keeps them for 10 minutes while you pay.`
+                : "Seats can be picked once sales open."}
+            </p>
           )}
         </aside>
+      </div>
+    </>
+  );
+}
+
+/** The checkout panel, drawn as a ticket: seat lines, a perforation, then the total and actions. */
+function TicketStub({
+  title,
+  seats,
+  sections,
+  total,
+  children,
+}: {
+  title: string;
+  seats: string[];
+  sections: Section[];
+  total: string;
+  children: ReactNode;
+}) {
+  const byCode = new Map(sections.map((s) => [s.code, s]));
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="h-1.5 bg-stub" />
+      <div className="p-5">
+        <h2 className="font-poster text-2xl">{title}</h2>
+        {seats.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">No seats picked yet.</p>
+        ) : (
+          <ul className="mt-3 flex flex-col gap-2 text-sm">
+            {seats.map((seat) => {
+              const section = byCode.get(sectionOf(seat));
+              const [, row, number] = seat.split("-");
+              return (
+                <li key={seat} className="flex items-baseline justify-between gap-3">
+                  <span>
+                    <span className="font-semibold">{section?.name ?? sectionOf(seat)}</span>
+                    <span className="text-muted-foreground">
+                      , row {row}, seat {number}
+                    </span>
+                  </span>
+                  <span className="tabular">{section ? formatPrice(section.price_cents) : ""}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      <div className="perforation-x mx-0" />
+      <div className="flex flex-col gap-3 p-5">
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm text-muted-foreground">Total</span>
+          <span className="tabular text-2xl font-bold">{total}</span>
+        </div>
+        {children}
       </div>
     </div>
   );

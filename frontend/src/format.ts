@@ -37,3 +37,21 @@ export function formatDuration(totalSeconds: number): string {
   if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${sec}`;
   return `${m}:${sec}`;
 }
+
+export interface CountdownParts {
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+}
+
+/** Splits a countdown into whole days, hours, minutes and seconds (rounded down, never negative). */
+export function countdownParts(totalSeconds: number): CountdownParts {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  return {
+    days: Math.floor(s / 86400),
+    hours: Math.floor((s % 86400) / 3600),
+    minutes: Math.floor((s % 3600) / 60),
+    seconds: s % 60,
+  };
+}

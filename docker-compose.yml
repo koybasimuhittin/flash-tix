@@ -29,6 +29,8 @@ services:
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
     volumes:
       - redisdata:/data
+    ports:
+      - "127.0.0.1:6380:6379" # host-side tests and debugging: redis-cli -p 6380
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -64,6 +66,29 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  catalog-service:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE: catalog
+    environment:
+      SERVICE_NAME: catalog
+      LOG_LEVEL: INFO
+      JWT_PUBLIC_KEY_PATH: /secrets/jwt_public.pem
+      CATALOG_DATABASE_URL: postgresql+asyncpg://catalog_user:${CATALOG_DB_PASSWORD:?}@postgres:5432/catalogdb
+      REDIS_URL: redis://redis:6379/0
+      CATALOG_CACHE_ENABLED: ${CATALOG_CACHE_ENABLED:-true}
+      CATALOG_CACHE_TTL_SECONDS: ${CATALOG_CACHE_TTL_SECONDS:-30}
+    volumes:
+      - ./secrets:/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck: *service-healthcheck
 
 volumes:
   pgdata:

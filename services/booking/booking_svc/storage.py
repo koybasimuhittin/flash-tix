@@ -1,6 +1,6 @@
-"""Where ticket PDFs (written by the ticket-pdf function) are read from.
+"""Where ticket PDFs and report CSVs (written by the worker service) are read from.
 
-STORAGE_BACKEND=local reads a shared folder; `gcs` arrives with the cloud phase.
+STORAGE_BACKEND=local reads the folder shared with the worker.
 """
 
 import asyncio

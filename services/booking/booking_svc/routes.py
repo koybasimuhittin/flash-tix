@@ -290,7 +290,7 @@ async def daily_report(
     _: Principal = Depends(require_organizer),
     state: BookingState = Depends(get_state),
 ) -> Response:
-    """The CSV written by the daily-report function for that (Europe/Istanbul) day."""
+    """The CSV the worker wrote for that (Europe/Istanbul) day."""
     name = report_name(report_date)
     if not await state.storage.exists(name):
         raise _error(status.HTTP_404_NOT_FOUND, "REPORT_NOT_FOUND")
@@ -336,7 +336,7 @@ async def download_ticket(
     principal: Principal = Depends(get_principal),
     state: BookingState = Depends(get_state),
 ) -> Response:
-    """The ticket-pdf function writes the PDF a few seconds after purchase; until then 202."""
+    """The worker writes the PDF a few seconds after purchase; until then 202."""
     booking = await _visible_booking(state, booking_id, principal)
     name = ticket_name(booking.id)
     if not await state.storage.exists(name):

@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     catalog = CatalogClient(
         settings.catalog_url, settings.catalog_event_cache_ttl_seconds, transport
     )
-    publisher = make_publisher(settings.event_backend, settings.ticket_function_url)
+    publisher = make_publisher(settings.event_backend, settings.worker_url)
     app.state.booking = BookingState(
         settings=settings,
         engine=engine,

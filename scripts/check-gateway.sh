@@ -31,6 +31,13 @@ generated=$(header X-Request-ID "$base/api/events")
   || fail "generated X-Request-ID is not passed to catalog"
 echo "ok   request ids are echoed and reach the service"
 
+long=$(printf 'x%.0s' $(seq 200))
+[[ $(header X-Request-ID -H "X-Request-ID: $long" "$base/api/events") =~ ^[0-9a-f]{32}$ ]] \
+  || fail "an oversized X-Request-ID was not replaced"
+[[ $(header X-Request-ID -H 'X-Request-ID: bad id <script>' "$base/api/events") =~ ^[0-9a-f]{32}$ ]] \
+  || fail "an X-Request-ID with unsafe characters was not replaced"
+echo "ok   oversized or unsafe request ids are replaced"
+
 json_error() { # json_error <expected status> <expected code> <curl args...>
   local expected=$1 code=$2; shift 2
   local out

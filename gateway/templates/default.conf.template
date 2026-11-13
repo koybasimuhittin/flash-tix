@@ -1,10 +1,11 @@
 # FlashTix gateway. Rendered by envsubst at container start;
 # only ${BOOKING_RATE_*} and ${GATEWAY_*} are substituted (see the Dockerfile).
 
-# One request id per request: keep the caller's X-Request-ID, otherwise use nginx's own.
+# One request id per request: keep the caller's X-Request-ID when it is 1-128 safe characters,
+# otherwise use nginx's own, so odd or oversized client values never reach logs or services.
 map $http_x_request_id $req_id {
-    default $http_x_request_id;
-    ""      $request_id;
+    "~^[A-Za-z0-9._:-]{1,128}$" $http_x_request_id;
+    default                     $request_id;
 }
 
 # Per-user booking limit, keyed by the bearer token rather than the client IP: Locust sends

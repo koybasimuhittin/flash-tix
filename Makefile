@@ -7,7 +7,7 @@ PYTHON  ?= $(shell command -v python3.12 || command -v python3.13 || command -v 
 PY      ?= $(VENV)/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help dev keys up down clean logs ps psql db-check gateway-check report fe-dev test lint fmt
+.PHONY: help dev keys up down clean logs ps psql db-check gateway-check report seed smoke oversell fe-dev test lint fmt
 
 help: ## List targets
 	@grep -E '^[a-z.-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
@@ -22,8 +22,8 @@ keys: ## Generate local JWT RS256 keys into secrets/
 .env:
 	cp .env.example .env
 
-up: keys .env ## Build and start the stack (gateway on http://localhost:8080)
-	$(COMPOSE) up --build -d
+up: keys .env ## Build and start the stack, wait until healthy (gateway on http://localhost:8080)
+	$(COMPOSE) up --build -d --wait
 
 down: ## Stop the stack
 	$(COMPOSE) down
@@ -48,6 +48,15 @@ gateway-check: ## Verify gateway routing, request ids and the booking rate limit
 
 report: ## Run the daily-report function: make report [date=YYYY-MM-DD] (default: yesterday)
 	@curl -s --fail-with-body "http://127.0.0.1:8091/$(if $(date),?date=$(date))" && echo
+
+seed: ## Create the demo events (idempotent) and re-arm the flash sale to open in 2 minutes
+	@python3 scripts/seed.py
+
+smoke: ## End-to-end check: holds, purchase, ticket PDF, 20-buyer race, oversell check
+	@python3 scripts/smoke_test.py
+
+oversell: ## Prove no seat was sold twice and no event beyond its capacity
+	@python3 scripts/check_oversell.py
 
 fe-dev: ## Vite dev server on http://localhost:5173 (proxies /api to the gateway on :8080)
 	cd frontend && npm install && npm run dev

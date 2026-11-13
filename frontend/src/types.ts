@@ -75,3 +75,27 @@ export interface Booking {
   seats: BookingSeat[];
   ticket_ready: boolean;
 }
+
+export interface EventStats {
+  event_id: number;
+  sold: number;
+  held: number;
+}
+
+export interface SectionIn {
+  code: string;
+  name: string;
+  price_cents: number;
+  rows: number;
+  seats_per_row: number;
+}
+
+export interface EventIn {
+  title: string;
+  description: string;
+  venue: string;
+  city: string;
+  starts_at: string;
+  sales_open_at: string;
+  sections: SectionIn[];
+}

@@ -1,13 +1,21 @@
-"""Cache-aside for catalog reads, with a list version for cheap invalidation.
+"""Cache-aside for catalog reads, with version numbers for cheap, race-free invalidation.
 
-- Detail: `catalog:v1:event:{id}` → response JSON.
+- Detail: `catalog:v1:event:{id}:{event_version}` → response JSON.
 - List:   `catalog:v1:events:{list_version}:{sha1(normalized query)}` → response JSON.
-- A write deletes the detail key and INCRs `catalog:v1:list_version`. Every list key embeds
-  the version it was built under, so all old list entries stop being read at once (no SCAN,
-  no key tracking) and simply expire with their TTL.
+- A write INCRs the event's version and the list version. Every key embeds the version it was
+  built under, so old entries stop being read at once (no SCAN, no key tracking) and simply
+  expire with their TTL.
+- Readers fetch the version *before* the database. If a write lands in between, the reader
+  stores its now-stale body under the old version, which nobody reads any more; a plain
+  "delete the key" invalidation could instead be overwritten by that late write.
 
-Redis failures never fail a request: reads fall back to the database, and a failed
-invalidation leaves entries stale for at most one TTL.
+Redis failures never fail a request: when the version can't be read the cache is skipped and
+the database answers; a failed invalidation leaves entries stale for at most one TTL.
+
+Known limits: when a popular entry expires under heavy load, every request that misses at
+that moment queries the database (cache stampede). booking-service also caches event data
+in-process for CATALOG_EVENT_CACHE_TTL_SECONDS, so a schedule change can take that long to
+reach seat holds.
 """
 
 import hashlib
@@ -22,8 +30,12 @@ logger = logging.getLogger("catalog_svc.cache")
 LIST_VERSION_KEY = "catalog:v1:list_version"
 
 
-def detail_key(event_id: int) -> str:
-    return f"catalog:v1:event:{event_id}"
+def event_version_key(event_id: int) -> str:
+    return f"catalog:v1:event_version:{event_id}"
+
+
+def detail_key(event_id: int, version: int) -> str:
+    return f"catalog:v1:event:{event_id}:{version}"
 
 
 def normalize_list_query(city: str | None, q: str | None, limit: int, offset: int) -> dict:
@@ -60,19 +72,26 @@ class CatalogCache:
         except RedisError:
             logger.warning("cache write failed", extra={"key": key}, exc_info=True)
 
-    async def list_version(self) -> int:
+    async def _version(self, key: str) -> int | None:
+        """None when Redis can't be read: the caller then skips the cache altogether."""
         try:
-            return int(await self.redis.get(LIST_VERSION_KEY) or 0)
+            return int(await self.redis.get(key) or 0)
         except RedisError:
-            logger.warning("cache read failed", extra={"key": LIST_VERSION_KEY}, exc_info=True)
-            return 0
+            logger.warning("cache read failed", extra={"key": key}, exc_info=True)
+            return None
+
+    async def list_version(self) -> int | None:
+        return await self._version(LIST_VERSION_KEY)
+
+    async def event_version(self, event_id: int) -> int | None:
+        return await self._version(event_version_key(event_id))
 
     async def invalidate(self, event_id: int) -> None:
         """Call after a write commits. Runs even when caching is disabled, so turning the
         cache back on never serves entries from before the switch."""
         try:
             async with self.redis.pipeline(transaction=True) as pipe:
-                pipe.delete(detail_key(event_id))
+                pipe.incr(event_version_key(event_id))
                 pipe.incr(LIST_VERSION_KEY)
                 await pipe.execute()
         except RedisError:

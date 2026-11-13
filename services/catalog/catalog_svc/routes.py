@@ -106,10 +106,11 @@ async def list_events(
     query = normalize_list_query(city, q, limit, offset)
     cache = state.cache
     key = None
-    if cache.enabled:
-        # Read the version *before* the DB: if a write lands meanwhile, this result is stored
-        # under the old version, which nobody reads any more.
-        key = list_key(await cache.list_version(), query)
+    # Read the version *before* the DB: if a write lands meanwhile, this result is stored
+    # under the old version, which nobody reads any more. No version (Redis down) → no cache.
+    version = await cache.list_version() if cache.enabled else None
+    if version is not None:
+        key = list_key(version, query)
         if (cached := await cache.get(key)) is not None:
             return _json(cached, "HIT")
 
@@ -149,7 +150,10 @@ async def my_events(
 @router.get("/{event_id}", response_model=EventDetail)
 async def get_event(event_id: int, state: CatalogState = Depends(get_state)) -> Response:
     cache = state.cache
-    if cache.enabled and (cached := await cache.get(detail_key(event_id))) is not None:
+    # Version first, then the DB (see cache.py): a late write lands under an outdated key.
+    version = await cache.event_version(event_id) if cache.enabled else None
+    key = detail_key(event_id, version) if version is not None else None
+    if key is not None and (cached := await cache.get(key)) is not None:
         return _json(cached, "HIT")
 
     async with state.sessionmaker() as session:
@@ -158,9 +162,9 @@ async def get_event(event_id: int, state: CatalogState = Depends(get_state)) -> 
         raise _not_found()
     body = _detail(event).model_dump_json()
 
-    if not cache.enabled:
+    if key is None:
         return _json(body, "BYPASS")
-    await cache.set(detail_key(event_id), body)
+    await cache.set(key, body)
     return _json(body, "MISS")
 
 

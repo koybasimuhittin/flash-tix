@@ -5,3 +5,4 @@ httpx==0.28.1
 -e services/common
 -r services/auth/requirements.txt
 -r services/catalog/requirements.txt
+-r services/booking/requirements.txt

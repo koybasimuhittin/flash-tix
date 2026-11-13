@@ -1,0 +1,36 @@
+"""Where ticket PDFs (written by the ticket-pdf function) are read from.
+
+STORAGE_BACKEND=local reads a shared folder; `gcs` arrives with the cloud phase.
+"""
+
+import uuid
+from pathlib import Path
+from typing import Protocol
+
+
+class TicketStorage(Protocol):
+    async def exists(self, name: str) -> bool: ...
+
+    async def read(self, name: str) -> bytes: ...
+
+
+class LocalStorage:
+    def __init__(self, root: str) -> None:
+        self.root = Path(root)
+
+    async def exists(self, name: str) -> bool:
+        return (self.root / name).is_file()
+
+    async def read(self, name: str) -> bytes:
+        return (self.root / name).read_bytes()
+
+
+def make_storage(backend: str, local_dir: str) -> TicketStorage:
+    if backend == "local":
+        return LocalStorage(local_dir)
+    raise NotImplementedError(f"STORAGE_BACKEND={backend!r} is not supported")
+
+
+def ticket_name(booking_id: uuid.UUID) -> str:
+    """Object names are built from the typed booking id only, never from request text."""
+    return f"tickets/{booking_id}.pdf"

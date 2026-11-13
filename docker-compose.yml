@@ -90,6 +90,37 @@ services:
         condition: service_healthy
     healthcheck: *service-healthcheck
 
+  booking-service:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE: booking
+    environment:
+      SERVICE_NAME: booking
+      LOG_LEVEL: INFO
+      JWT_PUBLIC_KEY_PATH: /secrets/jwt_public.pem
+      BOOKING_DATABASE_URL: postgresql+asyncpg://booking_user:${BOOKING_DB_PASSWORD:?}@postgres:5432/bookingdb
+      REDIS_URL: redis://redis:6379/0
+      CATALOG_URL: http://catalog-service:8000
+      HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-600}
+      MAX_SEATS_PER_BOOKING: ${MAX_SEATS_PER_BOOKING:-6}
+      MOCK_PAYMENT_LATENCY_MS: ${MOCK_PAYMENT_LATENCY_MS:-0}
+      EVENT_BACKEND: log # http (ticket-pdf function) arrives later
+      STORAGE_BACKEND: local
+      LOCAL_STORAGE_DIR: /data/storage
+    volumes:
+      - ./secrets:/secrets:ro
+      - storage:/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+    healthcheck: *service-healthcheck
+
   frontend:
     build: ./frontend
     healthcheck:
@@ -107,12 +138,14 @@ services:
       BOOKING_RATE_BURST: ${BOOKING_RATE_BURST:-10}
       GATEWAY_ACCESS_LOG: ${GATEWAY_ACCESS_LOG:-/dev/stdout}
       GATEWAY_RESOLVER: 127.0.0.11 # Docker's embedded DNS
-    # Only the services that exist so far: upstreams are resolved per request, so booking and
-    # frontend can join later without restarting the gateway (they answer 502 until then).
+    # Upstreams are resolved per request, so the frontend can join later without restarting
+    # the gateway (it answers 502 until then).
     depends_on:
       auth-service:
         condition: service_healthy
       catalog-service:
+        condition: service_healthy
+      booking-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/gateway/healthz"]
@@ -123,3 +156,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  storage: # tickets/ and reports/, shared with the functions (local stand-in for GCS)

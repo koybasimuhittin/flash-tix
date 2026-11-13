@@ -12,11 +12,11 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", "fastapi.Body"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["flashtix_common", "auth_svc", "catalog_svc"]
+known-first-party = ["flashtix_common", "auth_svc", "catalog_svc", "booking_svc"]
 
 [tool.pytest.ini_options]
 testpaths = ["services"]
 # Each service's package lives in services/<svc>/<svc>_svc; add a line per new service.
-pythonpath = ["services/auth", "services/catalog"]
+pythonpath = ["services/auth", "services/catalog", "services/booking"]
 # Services have test files with the same names; importlib mode keeps them apart.
 addopts = "--import-mode=importlib"

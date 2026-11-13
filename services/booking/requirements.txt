@@ -1,0 +1,3 @@
+# booking-service only; flashtix_common brings FastAPI, SQLAlchemy, asyncpg, redis and PyJWT.
+uvicorn==0.54.0
+httpx==0.28.1

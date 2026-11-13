@@ -26,6 +26,9 @@ def sold_loaded_key(event_id: int) -> str:
     return f"sold:loaded:{event_id}"  # present once sold:<event> was loaded from the DB
 
 
+SOLD_MARKER_TTL_SECONDS = 3600
+
+
 def _script(name: str) -> str:
     return (resources.files("booking_svc") / "lua" / f"{name}.lua").read_text()
 
@@ -43,13 +46,16 @@ class HoldStore:
 
     async def ensure_sold_loaded(self, event_id: int, load_sold: SoldLoader) -> None:
         """Rebuild sold:<event> from the database if Redis lost it (restart, FLUSHALL).
-        Idempotent: two pods loading at once just SADD the same seats."""
+        Idempotent: two pods loading at once just SADD the same seats.
+
+        The marker expires, so ids that don't belong to any event (availability and stats accept
+        any id) leave no permanent keys; a reload after expiry only re-adds the same seats."""
         if await self.redis.exists(sold_loaded_key(event_id)):
             return
         seats = await load_sold(event_id)
         if seats:
             await self.redis.sadd(sold_key(event_id), *seats)
-        await self.redis.set(sold_loaded_key(event_id), "1")
+        await self.redis.set(sold_loaded_key(event_id), "1", ex=SOLD_MARKER_TTL_SECONDS)
 
     async def unloaded(self, event_ids: list[int]) -> list[int]:
         """The events whose sold cache still has to be loaded, checked in one round trip."""

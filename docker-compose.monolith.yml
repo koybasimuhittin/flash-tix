@@ -1,0 +1,64 @@
+# Monolith mode: `MONOLITH=1 make up` (the Makefile adds this file).
+# The three FastAPI services are replaced by ONE container running the same code
+# (services/monolith); the gateway sends every /api route to it. Everything else is unchanged.
+services:
+  auth-service:
+    profiles: ["microservices-off"] # never activated: not started in monolith mode
+  catalog-service:
+    profiles: ["microservices-off"]
+  booking-service:
+    profiles: ["microservices-off"]
+
+  monolith:
+    build:
+      context: ./services
+      dockerfile: monolith/Dockerfile
+    environment:
+      SERVICE_NAME: monolith
+      LOG_LEVEL: INFO
+      JWT_PRIVATE_KEY_PATH: /secrets/jwt_private.pem
+      JWT_PUBLIC_KEY_PATH: /secrets/jwt_public.pem
+      AUTH_DATABASE_URL: postgresql+asyncpg://auth_user:${AUTH_DB_PASSWORD:?}@postgres:5432/authdb
+      CATALOG_DATABASE_URL: postgresql+asyncpg://catalog_user:${CATALOG_DB_PASSWORD:?}@postgres:5432/catalogdb
+      BOOKING_DATABASE_URL: postgresql+asyncpg://booking_user:${BOOKING_DB_PASSWORD:?}@postgres:5432/bookingdb
+      REDIS_URL: redis://redis:6379/0
+      BOOTSTRAP_ORGANIZER_EMAIL: ${BOOTSTRAP_ORGANIZER_EMAIL:-}
+      BOOTSTRAP_ORGANIZER_PASSWORD: ${BOOTSTRAP_ORGANIZER_PASSWORD:-}
+      BOOTSTRAP_ORGANIZER_NAME: ${BOOTSTRAP_ORGANIZER_NAME:-Organizer}
+      CATALOG_CACHE_ENABLED: ${CATALOG_CACHE_ENABLED:-true}
+      CATALOG_CACHE_TTL_SECONDS: ${CATALOG_CACHE_TTL_SECONDS:-30}
+      HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-600}
+      MAX_SEATS_PER_BOOKING: ${MAX_SEATS_PER_BOOKING:-6}
+      MOCK_PAYMENT_LATENCY_MS: ${MOCK_PAYMENT_LATENCY_MS:-0}
+      EVENT_BACKEND: http
+      TICKET_FUNCTION_URL: http://ticket-pdf:8080/
+      STORAGE_BACKEND: local
+      LOCAL_STORAGE_DIR: /data/storage
+    volumes:
+      - ./secrets:/secrets:ro
+      - storage:/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ticket-pdf:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  gateway:
+    environment:
+      GATEWAY_AUTH_UPSTREAM: monolith:8000
+      GATEWAY_CATALOG_UPSTREAM: monolith:8000
+      GATEWAY_BOOKING_UPSTREAM: monolith:8000
+    depends_on: !override
+      monolith:
+        condition: service_healthy

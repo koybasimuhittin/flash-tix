@@ -32,8 +32,10 @@ def psql(sql: str) -> list[list[str]]:
     return [line.split(",") for line in result.stdout.splitlines() if line]
 
 
-def check(event_ids: set[int] | None = None) -> None:
-    """Fails (exit 1) on any oversell. `event_ids` limits the capacity check to some events."""
+def check(event_ids: set[int] | None = None, strict: bool = False) -> None:
+    """Fails (exit 1) on any oversell. `event_ids` limits the capacity check to some events.
+    `strict` (use it after load tests) also fails when bookings exist for events the catalog
+    doesn't know, instead of skipping them."""
     duplicates = int(psql(DUPLICATES_SQL)[0][0])
     if duplicates:
         fail(f"{duplicates} seat(s) sold more than once")
@@ -45,6 +47,8 @@ def check(event_ids: set[int] | None = None) -> None:
             continue
         status, event = api("GET", f"/api/events/{event_id}")
         if status == 404:
+            if strict:
+                fail(f"event {event_id} has {sold} sold seats but is unknown to the catalog")
             unknown += 1  # bookings left by booking-service's tests (they mock the catalog)
             continue
         if status != 200:
@@ -57,4 +61,4 @@ def check(event_ids: set[int] | None = None) -> None:
 
 
 if __name__ == "__main__":
-    check()
+    check(strict="--strict" in sys.argv[1:])

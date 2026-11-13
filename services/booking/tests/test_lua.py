@@ -135,3 +135,13 @@ async def test_sold_cache_is_rebuilt_from_the_database(store, event):
     await store.ensure_sold_loaded(event, load)
     assert calls == [event, event]
     assert await store.hold(event, 1, ["C-1-1"], NOW, LATER) == ["C-1-1"]
+
+
+async def test_unloaded_lists_only_events_without_a_sold_cache(store, event):
+    other = event + 1
+
+    async def load(event_id: int) -> list[str]:
+        return []
+
+    await store.ensure_sold_loaded(event, load)
+    assert await store.unloaded([event, other]) == [other]

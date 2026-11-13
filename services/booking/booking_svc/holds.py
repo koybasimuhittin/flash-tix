@@ -51,6 +51,14 @@ class HoldStore:
             await self.redis.sadd(sold_key(event_id), *seats)
         await self.redis.set(sold_loaded_key(event_id), "1")
 
+    async def unloaded(self, event_ids: list[int]) -> list[int]:
+        """The events whose sold cache still has to be loaded, checked in one round trip."""
+        async with self.redis.pipeline(transaction=False) as pipe:
+            for event_id in event_ids:
+                pipe.exists(sold_loaded_key(event_id))
+            loaded = await pipe.execute()
+        return [event_id for event_id, ok in zip(event_ids, loaded, strict=True) if not ok]
+
     async def hold(
         self, event_id: int, user_id: int, seats: list[str], now_ms: int, expires_at_ms: int
     ) -> list[str]:

@@ -276,7 +276,7 @@ async def event_stats(
     so the page doesn't hit the per-user rate limit. Any organizer may read any event
     (single-organizer simplification). Unknown ids count as zeros."""
     ids = _parse_event_ids(event_ids)
-    for event_id in ids:
+    for event_id in await state.holds.unloaded(ids):  # usually none: one round trip, no loads
         await _ensure_sold_loaded(state, event_id)
     counts = await state.holds.counts(ids, now_ms())
     return [

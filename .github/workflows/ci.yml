@@ -20,8 +20,8 @@ jobs:
             services/**/requirements.txt
       - run: pip install -r requirements-dev.txt
       - run: make lint PY=python
-      # Integration tests (e.g. init_schema) use the compose postgres on 127.0.0.1:5433.
-      - run: cp .env.example .env && docker compose up -d --wait postgres
+      # Integration tests use the compose postgres (127.0.0.1:5433) and redis (127.0.0.1:6380).
+      - run: cp .env.example .env && docker compose up -d --wait postgres redis
       - run: make test PY=python
 
   data:

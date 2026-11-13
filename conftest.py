@@ -14,6 +14,7 @@ import pytest
 def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
-    if report.skipped and os.environ.get("REQUIRE_DB") == "1":
+    # xfail results are reported as skipped too; they are expected outcomes, not missing services.
+    if report.skipped and not hasattr(report, "wasxfail") and os.environ.get("REQUIRE_DB") == "1":
         report.outcome = "failed"
         report.longrepr = f"REQUIRE_DB=1 but the test was skipped: {report.longrepr}"

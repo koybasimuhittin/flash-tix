@@ -6,12 +6,19 @@ set -euo pipefail
 set -a; source .env; set +a
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
-# psql as a given role over TCP, so password auth is exercised like a real service would.
+# psql as a given role over TCP, so password auth is exercised like a real service would. The host
+# is the service name, i.e. the container's network address: the image trusts 127.0.0.1 without
+# a password, so connecting there would never check one.
 as() {
   local user=$1 password=$2 db=$3 sql=$4
   docker compose exec -T -e PGPASSWORD="$password" -e PGOPTIONS="-c client_min_messages=warning" postgres \
-    psql -h 127.0.0.1 -U "$user" -d "$db" -v ON_ERROR_STOP=1 -tAc "$sql"
+    psql -h postgres -U "$user" -d "$db" -v ON_ERROR_STOP=1 -tAc "$sql"
 }
+
+if as auth_user "wrong-$RANDOM" authdb "SELECT 1" >/dev/null 2>&1; then
+  fail "a wrong password was accepted: password authentication is not being exercised"
+fi
+echo "ok   password authentication is enforced"
 
 owners=$(as postgres "$POSTGRES_PASSWORD" postgres \
   "SELECT string_agg(datname || ':' || pg_get_userbyid(datdba), ',' ORDER BY datname)

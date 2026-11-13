@@ -5,7 +5,7 @@ A flash-sale event-ticketing system. When sales open, many buyers hit the same e
 - **Three FastAPI services:** `auth` (accounts, JWT), `catalog` (events, seat layouts, Redis cache), `booking` (seat holds in Redis via Lua scripts, purchases, tickets).
 - **nginx gateway:** one entry point, per-user rate limit, request ids.
 - **React frontend.**
-- **PostgreSQL + Redis.**
+- **PostgreSQL 16 + Redis 7.** Any other environment should run the same major versions as compose.
 - **Worker service:** renders a PDF ticket after every purchase and writes a CSV of each day's sales.
 
 ```

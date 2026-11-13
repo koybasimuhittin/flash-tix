@@ -24,7 +24,7 @@ jobs:
       - run: cp .env.example .env && docker compose up -d --wait postgres redis
       - run: make test PY=python
         env:
-          REQUIRE_DB: "1" # DB tests that honor it fail instead of silently skipping
+          REQUIRE_DB: "1" # conftest.py: any skipped test fails instead of passing silently
 
   data:
     runs-on: ubuntu-latest

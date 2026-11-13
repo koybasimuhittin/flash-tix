@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flashtix-common"
+version = "0.1.0"
+description = "Shared library for the FlashTix services: config, logging, request context, JWT auth, DB, Redis, health checks"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.162.6",
+    "pydantic==2.14.3",
+    "pydantic-settings==2.16.3",
+    "sqlalchemy[asyncio]==2.1.8",
+    "asyncpg==0.32.0",
+    "redis==8.1.0",
+    "pyjwt[crypto]==2.15.1",
+]
+
+[tool.setuptools]
+packages = ["flashtix_common"]

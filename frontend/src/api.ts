@@ -108,7 +108,11 @@ function describeDetail(status: number, detail: unknown): string {
   }
   if (detail && typeof detail === "object" && "code" in detail) {
     const code = String((detail as { code: unknown }).code);
-    return GATEWAY_MESSAGES[code] ?? code;
+    if (GATEWAY_MESSAGES[code]) return GATEWAY_MESSAGES[code];
+    // A service whose own dependency is down, e.g. booking's 503 CATALOG_UNAVAILABLE. Only on
+    // 5xx: the 409 SEATS_UNAVAILABLE means "seats taken", not an outage.
+    if (status >= 500 && code.endsWith("_UNAVAILABLE")) return GATEWAY_MESSAGES.UPSTREAM_UNAVAILABLE;
+    return code;
   }
   return `Something went wrong (HTTP ${status}). Try again.`;
 }

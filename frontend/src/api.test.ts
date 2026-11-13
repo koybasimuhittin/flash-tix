@@ -58,6 +58,19 @@ describe("api", () => {
     expect(errorMessage(err)).toMatch(message);
   });
 
+  it("shows a service's own outage code (5xx *_UNAVAILABLE) as not reachable", async () => {
+    respond(503, { detail: { code: "CATALOG_UNAVAILABLE" } });
+    const err = await failure(api.post("/api/booking/holds", {}));
+    expect(err.code).toBe("CATALOG_UNAVAILABLE");
+    expect(errorMessage(err)).toMatch(/not reachable/);
+  });
+
+  it("keeps the 409 SEATS_UNAVAILABLE as a domain code, not an outage", async () => {
+    respond(409, { detail: { code: "SEATS_UNAVAILABLE", seats: ["A-1-1"] } });
+    const err = await failure(api.post("/api/booking/holds", {}));
+    expect(errorMessage(err)).toBe("SEATS_UNAVAILABLE");
+  });
+
   it("falls back to a generic message when the body is not JSON", async () => {
     respond(500, "Internal Server Error", "text/plain");
     const err = await failure(api.get("/api/events"));

@@ -355,7 +355,7 @@ async def republish(
     principal: Principal = Depends(get_principal),
     state: BookingState = Depends(get_state),
 ) -> dict[str, str]:
-    """Recovery when the original booking.confirmed publish was lost: send it again. The function
+    """Recovery when the original booking.confirmed publish was lost: send it again. The worker
     overwrites tickets/{id}.pdf, so publishing twice is harmless."""
     booking = await _visible_booking(state, booking_id, principal, organizer_ok=True)
     background.add_task(

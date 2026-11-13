@@ -1,6 +1,6 @@
 # One template for every Python service. Build context is services/:
 #   docker build -f services/Dockerfile --build-arg SERVICE=auth services/
-# For GKE (amd64 nodes) add: docker buildx build --platform linux/amd64 ...
+# For amd64 hosts (e.g. when building on Apple Silicon): docker buildx build --platform linux/amd64 ...
 FROM python:3.12-slim
 
 ARG SERVICE

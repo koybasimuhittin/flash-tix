@@ -252,7 +252,8 @@ async def my_bookings(
                 .limit(50)
             )
         ).all()
-    return [await _booking_out(state, booking) for booking in bookings]
+    # Up to 50 "does the ticket exist?" checks: run them concurrently, not one after another.
+    return list(await asyncio.gather(*(_booking_out(state, booking) for booking in bookings)))
 
 
 def _parse_event_ids(raw: str) -> list[int]:

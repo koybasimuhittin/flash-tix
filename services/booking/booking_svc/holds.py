@@ -2,6 +2,10 @@
 
 Every state change runs as a Lua script: Redis executes a script as one atomic step, so
 "check every seat, then hold all or none" can't interleave with another user's request.
+
+Hold expiry times come from the booking servers' clocks (passed in as now_ms), not from
+Redis TIME, so the servers' clocks should be NTP-synchronised; a small skew only shifts
+when a hold lapses by that much.
 """
 
 from collections.abc import Awaitable, Callable
@@ -26,6 +30,9 @@ def sold_loaded_key(event_id: int) -> str:
     return f"sold:loaded:{event_id}"  # present once sold:<event> was loaded from the DB
 
 
+SOLD_MARKER_TTL_SECONDS = 3600
+
+
 def _script(name: str) -> str:
     return (resources.files("booking_svc") / "lua" / f"{name}.lua").read_text()
 
@@ -43,13 +50,24 @@ class HoldStore:
 
     async def ensure_sold_loaded(self, event_id: int, load_sold: SoldLoader) -> None:
         """Rebuild sold:<event> from the database if Redis lost it (restart, FLUSHALL).
-        Idempotent: two pods loading at once just SADD the same seats."""
+        Idempotent: two pods loading at once just SADD the same seats.
+
+        The marker expires, so ids that don't belong to any event (availability and stats accept
+        any id) leave no permanent keys; a reload after expiry only re-adds the same seats."""
         if await self.redis.exists(sold_loaded_key(event_id)):
             return
         seats = await load_sold(event_id)
         if seats:
             await self.redis.sadd(sold_key(event_id), *seats)
-        await self.redis.set(sold_loaded_key(event_id), "1")
+        await self.redis.set(sold_loaded_key(event_id), "1", ex=SOLD_MARKER_TTL_SECONDS)
+
+    async def unloaded(self, event_ids: list[int]) -> list[int]:
+        """The events whose sold cache still has to be loaded, checked in one round trip."""
+        async with self.redis.pipeline(transaction=False) as pipe:
+            for event_id in event_ids:
+                pipe.exists(sold_loaded_key(event_id))
+            loaded = await pipe.execute()
+        return [event_id for event_id, ok in zip(event_ids, loaded, strict=True) if not ok]
 
     async def hold(
         self, event_id: int, user_id: int, seats: list[str], now_ms: int, expires_at_ms: int

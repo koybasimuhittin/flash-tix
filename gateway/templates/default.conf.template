@@ -27,6 +27,11 @@ server {
     # qualified names. Per-request resolution means no upstream keepalive connections.
     resolver ${GATEWAY_RESOLVER} valid=10s ipv6=off;
 
+    # Upstreams are on the same network: a TCP connect that takes 2 s means the upstream is gone
+    # (e.g. a stopped container whose IP is still cached), so answer 504 instead of holding the
+    # client for nginx's default 60 s. Only the connect is limited, not the response time.
+    proxy_connect_timeout 2s;
+
     proxy_http_version 1.1;
     proxy_set_header Connection "";
     proxy_set_header Host $host;

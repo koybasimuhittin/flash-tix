@@ -11,7 +11,7 @@ Check = Callable[[], Awaitable[object]]
 
 
 def make_health_router(checks: dict[str, Check], timeout_s: float = 1.0) -> APIRouter:
-    """Probe endpoints for K8s and compose healthchecks (not routed through the gateway).
+    """Probe endpoints for orchestrator and compose healthchecks (not routed through the gateway).
 
     /healthz (liveness): 200 while the process is up.
     /readyz (readiness): 200 only when every dependency check passes within the timeout,

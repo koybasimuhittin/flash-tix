@@ -6,16 +6,16 @@ A flash-sale event-ticketing system. When sales open, many buyers hit the same e
 - **nginx gateway:** one entry point, per-user rate limit, request ids.
 - **React frontend.**
 - **PostgreSQL + Redis.**
-- **Background jobs:** `ticket-pdf` renders a ticket after every purchase; `daily-report` writes a CSV of each day's sales.
+- **Worker service:** renders a PDF ticket after every purchase and writes a CSV of each day's sales.
 
 ```
 browser ──► gateway (nginx) ──┬─► auth-service ──────► Postgres authdb
             :8080             ├─► catalog-service ───► Postgres catalogdb, Redis (cache)
                               ├─► booking-service ───► Postgres bookingdb, Redis (holds)
-                              │        │ booking.confirmed
+                              │        │ booking.confirmed (HTTP)
                               │        ▼
-                              │   ticket-pdf ──► storage  tickets/<id>.pdf
-                              └─► frontend     daily-report ──► storage  reports/<date>.csv
+                              │     worker ──► storage  tickets/<id>.pdf, reports/<date>.csv
+                              └─► frontend        (reads bookings as a read-only role)
 ```
 
 ## Run it locally
@@ -66,7 +66,7 @@ CI (GitHub Actions) runs lint and tests, the database and gateway checks, the fr
 
 ### Troubleshooting
 
-- **Tickets never become ready / `Permission denied` in the ticket container logs:** your `flashtix_storage` volume was created by an older version as root. Run `make clean` (or `docker volume rm flashtix_storage`) once, then `make up`.
+- **Tickets never become ready / `Permission denied` in the worker logs:** your `flashtix_storage` volume was created by an older version as root. Run `make clean` (or `docker volume rm flashtix_storage`) once, then `make up`.
 - **401 everywhere after switching branches or worktrees:** every service must use the same `secrets/` keys. Run `make down && make up` from one checkout.
 - **Port 8080 / 5433 / 6380 / 8091 already in use:** stop the other program or another FlashTix stack (`make down`).
 - **The build runs out of memory (Colima):** `colima stop && colima start --cpu 4 --memory 6`.
@@ -74,8 +74,7 @@ CI (GitHub Actions) runs lint and tests, the database and gateway checks, the fr
 ### Repository layout
 
 ```
-services/   common (flashtix_common), auth, catalog, booking, monolith   (FastAPI, Python 3.12)
-functions/  ticket_pdf, daily_report                                       (background jobs)
+services/   common (flashtix_common), auth, catalog, booking, worker, monolith   (FastAPI, Python 3.12)
 gateway/    nginx template          frontend/   React app
 infra/      postgres init script    scripts/    seed, smoke, oversell, checks
 ```

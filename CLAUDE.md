@@ -1,6 +1,6 @@
 # CLAUDE.md — FlashTix
 
-FlashTix is a flash-sale event-ticketing system: three FastAPI services (auth, catalog, booking), an nginx gateway, a React frontend, PostgreSQL + Redis, and two background jobs (ticket PDFs, a daily sales report). See `README.md` for the architecture, how to run it and the `make` targets.
+FlashTix is a flash-sale event-ticketing system: three FastAPI services (auth, catalog, booking), an nginx gateway, a React frontend, PostgreSQL + Redis, and a worker service for background jobs (ticket PDFs, the daily sales report). See `README.md` for the architecture, how to run it and the `make` targets.
 
 ## Working mode
 - The user works **solo** for now. **Claude writes the code** and explains it; the user reviews.

@@ -48,8 +48,8 @@ db-check: ## Verify DB owners, per-service isolation and the read-only report ro
 gateway-check: ## Verify gateway routing, request ids and the booking rate limit (:8080)
 	./scripts/check-gateway.sh
 
-report: ## Run the daily-report function: make report [date=YYYY-MM-DD] (default: yesterday)
-	@curl -s --fail-with-body "http://127.0.0.1:8091/$(if $(date),?date=$(date))" && echo
+report: ## Write the daily sales report: make report [date=YYYY-MM-DD] (default: yesterday)
+	@curl -s --fail-with-body -X POST "http://127.0.0.1:8091/reports/daily$(if $(date),?date=$(date))" && echo
 
 seed: ## Create the demo events (idempotent) and re-arm the flash sale to open in 2 minutes
 	@python3 scripts/seed.py

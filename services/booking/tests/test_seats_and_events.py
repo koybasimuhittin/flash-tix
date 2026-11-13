@@ -1,4 +1,3 @@
-import base64
 import json
 import uuid
 from datetime import UTC, datetime
@@ -7,7 +6,7 @@ import httpx
 import pytest
 
 from booking_svc.catalog_client import parse_event
-from booking_svc.events import HttpPushPublisher, build_payload, publish_with_retries
+from booking_svc.events import WorkerPublisher, build_payload, publish_with_retries
 from booking_svc.models import Booking, BookingSeat
 from booking_svc.seats import (
     SeatRequestError,
@@ -85,7 +84,7 @@ def test_payload_matches_the_v1_contract():
     payload = build_payload(booking, "req-1")
     assert payload["type"] == "booking.confirmed" and payload["version"] == 1
     assert payload["booking_id"] == str(booking.id)
-    # All timestamps are UTC; ticket-pdf converts to Europe/Istanbul for display.
+    # All timestamps are UTC; the worker converts to Europe/Istanbul for display.
     assert payload["event"]["starts_at"] == "2026-12-20T17:00:00+00:00"
     assert payload["seats"] == [
         {"seat_id": "A-3-12", "section_name": "Front", "price_cents": 150_000}
@@ -123,33 +122,39 @@ async def test_publish_gives_up_without_raising():
 
 
 @pytest.mark.anyio
-async def test_http_push_publisher_sends_the_pubsub_push_envelope():
+async def test_worker_publisher_posts_the_event_to_the_worker():
     received = []
 
-    def function(request: httpx.Request) -> httpx.Response:
-        received.append(json.loads(request.content))
+    def worker(request: httpx.Request) -> httpx.Response:
+        received.append((request.url.path, json.loads(request.content)))
         return httpx.Response(204)
 
     payload = {"booking_id": "b-1", "request_id": "req-9", "seats": []}
-    publisher = HttpPushPublisher("http://ticket-pdf:8080/", httpx.MockTransport(function))
+    publisher = WorkerPublisher("http://worker:8000/", httpx.MockTransport(worker))
     await publisher.publish(payload)
     await publisher.aclose()
-
-    message = received[0]["message"]
-    assert json.loads(base64.b64decode(message["data"])) == payload
-    assert message["attributes"] == {
-        "type": "booking.confirmed",
-        "version": "1",
-        "request_id": "req-9",
-    }
-    assert received[0]["subscription"]
+    assert received == [("/tickets", payload)]
 
 
 @pytest.mark.anyio
-async def test_http_push_publisher_raises_on_failure_so_it_is_retried():
-    publisher = HttpPushPublisher(
-        "http://ticket-pdf:8080/", httpx.MockTransport(lambda _: httpx.Response(500))
+async def test_worker_publisher_raises_on_server_errors_so_it_is_retried():
+    publisher = WorkerPublisher(
+        "http://worker:8000", httpx.MockTransport(lambda _: httpx.Response(500))
     )
     with pytest.raises(httpx.HTTPStatusError):
         await publisher.publish({"booking_id": "b-1", "seats": []})
     await publisher.aclose()
+
+
+@pytest.mark.anyio
+async def test_worker_publisher_does_not_retry_an_invalid_event():
+    calls = []
+
+    def worker(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(422)
+
+    publisher = WorkerPublisher("http://worker:8000", httpx.MockTransport(worker))
+    assert await publish_with_retries(publisher, {"booking_id": "b-1"}, base_delay_s=0) is True
+    await publisher.aclose()
+    assert len(calls) == 1  # logged and dropped, not retried

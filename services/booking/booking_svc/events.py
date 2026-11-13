@@ -1,15 +1,12 @@
 """`booking.confirmed` events.
 
-EVENT_BACKEND picks the publisher: `log` only logs, `http` pushes to the local ticket-pdf
-function. Publishing is best effort and runs after the response: a
-failed publish is logged with the booking id and can be redone via /republish.
+EVENT_BACKEND picks the publisher: `log` only logs, `http` sends the event to the worker service.
+Publishing is best effort and runs after the response: a failed publish is logged with the
+booking id and can be redone via /republish.
 """
 
 import asyncio
-import base64
-import json
 import logging
-import uuid
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -42,45 +39,35 @@ class LogPublisher:
         return None
 
 
-def push_envelope(payload: dict) -> dict:
-    """The body a Pub/Sub push subscription delivers. The local publisher sends exactly
-    this, so ticket-pdf runs the same code path locally and in the cloud."""
-    return {
-        "message": {
-            "data": base64.b64encode(json.dumps(payload).encode()).decode(),
-            "attributes": {
-                "type": EVENT_TYPE,
-                "version": str(EVENT_VERSION),
-                "request_id": payload.get("request_id") or "",
-            },
-            "messageId": uuid.uuid4().hex,
-            "publishTime": datetime.now(UTC).isoformat(),
-        },
-        "subscription": "local/booking-confirmed-ticket-pdf",
-    }
+class WorkerPublisher:
+    """EVENT_BACKEND=http: POSTs the event to the worker service, which renders the ticket.
 
+    5xx and network errors raise, so publish_with_retries tries again. A 4xx means the event
+    itself is invalid; retrying can't help, so it is logged and dropped."""
 
-class HttpPushPublisher:
-    """Local stand-in for Pub/Sub push (EVENT_BACKEND=http): POSTs the push envelope straight to
-    the ticket-pdf container. A non-2xx answer raises, so publish_with_retries retries it."""
-
-    def __init__(self, url: str, transport: httpx.AsyncBaseTransport | None = None) -> None:
-        self.url = url
+    def __init__(self, worker_url: str, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        self.url = f"{worker_url.rstrip('/')}/tickets"
         self.client = httpx.AsyncClient(timeout=10.0, transport=transport)
 
     async def publish(self, payload: dict) -> None:
-        response = await self.client.post(self.url, json=push_envelope(payload))
+        response = await self.client.post(self.url, json=payload)
+        if 400 <= response.status_code < 500:
+            logger.error(
+                "worker rejected the event",
+                extra={"booking_id": payload["booking_id"], "status": response.status_code},
+            )
+            return
         response.raise_for_status()
 
     async def aclose(self) -> None:
         await self.client.aclose()
 
 
-def make_publisher(backend: str, ticket_function_url: str = "") -> EventPublisher:
+def make_publisher(backend: str, worker_url: str = "") -> EventPublisher:
     if backend == "log":
         return LogPublisher()
     if backend == "http":
-        return HttpPushPublisher(ticket_function_url)
+        return WorkerPublisher(worker_url)
     raise NotImplementedError(f"EVENT_BACKEND={backend!r} is not supported")
 
 

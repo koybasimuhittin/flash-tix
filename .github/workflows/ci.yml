@@ -18,7 +18,6 @@ jobs:
             requirements-dev.txt
             services/**/pyproject.toml
             services/**/requirements.txt
-            functions/**/requirements.txt
       - run: pip install -r requirements-dev.txt
       - run: make lint PY=python
       # Integration tests use the compose postgres (127.0.0.1:5433) and redis (127.0.0.1:6380).

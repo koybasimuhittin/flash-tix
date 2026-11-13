@@ -1,4 +1,0 @@
-functions-framework==3.10.2
-psycopg[binary]==3.3.9
-tzdata==2026.6
-google-cloud-storage==3.17.1

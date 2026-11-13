@@ -59,3 +59,9 @@ class BookingOut(BaseModel):
     created_at: datetime
     seats: list[SeatOut]
     ticket_ready: bool = False
+
+
+class EventStatsOut(BaseModel):
+    event_id: int
+    sold: int
+    held: int

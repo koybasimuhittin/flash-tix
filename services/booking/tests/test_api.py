@@ -404,6 +404,60 @@ def test_concurrent_buyers_get_a_seat_exactly_once(client):
 # --- routing -------------------------------------------------------------------------------
 
 
+def test_organizer_stats_in_one_request(client):
+    event, unknown = make_event(), make_event()
+    buyer, holder = new_user(), new_user()
+    hold(client, buyer, event, ["A-1-1", "A-1-2"])
+    assert purchase(client, buyer, event, ["A-1-1", "A-1-2"]).status_code == 201
+    hold(client, holder, event, ["B-1-1"])
+
+    response = client.get(
+        f"/api/booking/stats?event_ids={event},{unknown},{event}",
+        headers=auth(new_user(), role="organizer"),
+    )
+    assert response.status_code == 200
+    assert response.json() == [
+        {"event_id": event, "sold": 2, "held": 1},
+        {"event_id": unknown, "sold": 0, "held": 0},  # duplicates dropped, unknown → zeros
+    ]
+
+
+@pytest.mark.parametrize("query", ["", "abc", "1,x", ",".join(str(i) for i in range(101))])
+def test_stats_rejects_bad_event_ids(client, query):
+    response = client.get(
+        f"/api/booking/stats?event_ids={query}", headers=auth(new_user(), role="organizer")
+    )
+    assert (response.status_code, response.json()["detail"]["code"]) == (422, "INVALID_EVENT_IDS")
+
+
+def test_daily_report_download(client, storage_dir):
+    organizer = auth(new_user(), role="organizer")
+    missing = client.get("/api/booking/reports/2026-11-12", headers=organizer)
+    assert (missing.status_code, missing.json()["detail"]["code"]) == (404, "REPORT_NOT_FOUND")
+
+    (storage_dir / "reports").mkdir(exist_ok=True)
+    (storage_dir / "reports" / "2026-11-12.csv").write_text("event_id,bookings\n7,3\n")
+    report = client.get("/api/booking/reports/2026-11-12", headers=organizer)
+    assert report.status_code == 200
+    assert report.headers["content-type"].startswith("text/csv")
+    assert 'filename="flashtix-report-2026-11-12.csv"' in report.headers["content-disposition"]
+    assert report.text == "event_id,bookings\n7,3\n"
+
+    assert client.get("/api/booking/reports/12-11-2026", headers=organizer).status_code == 422
+    # A traversal attempt never reaches storage: either the route doesn't match (404, the
+    # decoded "/" splits the path) or the date doesn't parse (422).
+    traversal = client.get("/api/booking/reports/..%2Fsecrets", headers=organizer)
+    assert traversal.status_code in (404, 422)
+    assert "REPORT_NOT_FOUND" not in traversal.text
+
+
+def test_organizer_endpoints_are_forbidden_for_customers(client):
+    # 403 (not 422) also proves /stats and /reports aren't swallowed by /{booking_id}.
+    customer = auth(new_user())
+    assert client.get("/api/booking/stats?event_ids=1", headers=customer).status_code == 403
+    assert client.get("/api/booking/reports/2026-11-12", headers=customer).status_code == 403
+
+
 def test_static_routes_are_not_captured_by_booking_id(client):
     user = new_user()
     assert client.get("/api/booking/me", headers=auth(user)).json() == []

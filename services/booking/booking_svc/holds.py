@@ -73,6 +73,16 @@ class HoldStore:
         keys = [hold_zset_key(event_id), hold_hash_key(event_id), sold_key(event_id)]
         await self._mark_sold(keys=keys, args=seats)
 
+    async def counts(self, event_ids: list[int], now_ms: int) -> list[tuple[int, int]]:
+        """(sold, held) per event in one round trip, for the organizer's "My events" page.
+        `held` counts unexpired holds only."""
+        async with self.redis.pipeline(transaction=False) as pipe:
+            for event_id in event_ids:
+                pipe.scard(sold_key(event_id))
+                pipe.zcount(hold_zset_key(event_id), f"({now_ms}", "+inf")
+            results = await pipe.execute()
+        return list(zip(results[::2], results[1::2], strict=True))
+
     async def availability(
         self, event_id: int, user_id: int | None, now_ms: int
     ) -> tuple[list[str], list[str], list[str]]:

@@ -3,6 +3,14 @@ export function toMillis(iso: string): number {
   return Date.parse(iso);
 }
 
+/**
+ * Server clock minus local clock, in ms. The server read its clock roughly halfway through
+ * the round trip, so compare against the midpoint between sending and receiving.
+ */
+export function clockOffset(serverTimeIso: string, sentAt: number, receivedAt: number): number {
+  return toMillis(serverTimeIso) - (sentAt + receivedAt) / 2;
+}
+
 export function formatPrice(cents: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
@@ -18,9 +26,9 @@ export function formatDateTime(iso: string): string {
   });
 }
 
-/** 3725 s → "1:02:05", 65 s → "1:05". */
+/** 3725 s → "1:02:05", 65 s → "1:05". Rounds down, so a fresh 600 s hold shows 10:00, not 10:01. */
 export function formatDuration(totalSeconds: number): string {
-  const s = Math.max(0, Math.ceil(totalSeconds));
+  const s = Math.max(0, Math.floor(totalSeconds));
   const days = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);

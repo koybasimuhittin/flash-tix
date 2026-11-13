@@ -3,8 +3,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ApiError, api, errorMessage } from "../api";
 import { useAuth } from "../auth";
 import SeatMap, { SeatLegend } from "../components/SeatMap";
-import type { SeatState } from "../components/SeatMap";
-import { formatDateTime, formatDuration, formatPrice, toMillis } from "../format";
+import { clockOffset as computeClockOffset, formatDateTime, formatDuration, formatPrice, toMillis } from "../format";
+import { seatState, totalPrice } from "../seats";
 import { useNow, usePolling } from "../hooks";
 import type { Availability, Booking, EventDetail, Hold } from "../types";
 
@@ -40,10 +40,6 @@ function storeHold(eventId: number, hold: ActiveHold | null): void {
   } catch {
     // ignore
   }
-}
-
-function sectionOf(seat: string): string {
-  return seat.split("-")[0];
 }
 
 function describeError(err: unknown): string {
@@ -107,8 +103,7 @@ export default function EventPage() {
     try {
       const sentAt = Date.now();
       const a = await api.get<Availability>(`/api/booking/events/${eventId}/availability`);
-      // The server read its clock roughly halfway through the round trip.
-      setClockOffset(toMillis(a.server_time) - (sentAt + Date.now()) / 2);
+      setClockOffset(computeClockOffset(a.server_time, sentAt, Date.now()));
       setAvailability(a);
       // Drop selected seats that someone else has just held or bought.
       const taken = new Set([...a.sold, ...a.held]);
@@ -147,16 +142,7 @@ export default function EventPage() {
     [availability, myHolds, hold, selected],
   );
 
-  const stateOf = useCallback(
-    (id: string): SeatState => {
-      if (sets.sold.has(id)) return "sold";
-      if (sets.mine.has(id)) return "mine";
-      if (sets.held.has(id)) return "held";
-      if (sets.selected.has(id)) return "selected";
-      return "available";
-    },
-    [sets],
-  );
+  const stateOf = useCallback((id: string) => seatState(id, sets), [sets]);
 
   const toggle = useCallback((id: string) => {
     setNotice(null);
@@ -170,10 +156,7 @@ export default function EventPage() {
     });
   }, []);
 
-  const priceOf = useMemo(() => {
-    const prices = new Map(event?.sections.map((s) => [s.code, s.price_cents]));
-    return (seats: string[]) => seats.reduce((sum, s) => sum + (prices.get(sectionOf(s)) ?? 0), 0);
-  }, [event]);
+  const priceOf = (seats: string[]) => totalPrice(seats, event?.sections ?? []);
 
   async function holdSelected() {
     if (!user) {

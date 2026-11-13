@@ -1,11 +1,7 @@
 import { memo } from "react";
+import { seatId } from "../seats";
+import type { SeatState } from "../seats";
 import type { Section } from "../types";
-
-export type SeatState = "available" | "selected" | "mine" | "held" | "sold";
-
-export function seatId(section: string, row: number, seat: number): string {
-  return `${section}-${row}-${seat}`;
-}
 
 const LABELS: Record<SeatState, string> = {
   available: "Available",

@@ -12,6 +12,9 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
+from redis import Redis
+
+from catalog_svc.cache import detail_key, event_version_key
 
 DB = ("127.0.0.1", 5433)
 REDIS = ("127.0.0.1", 6380)
@@ -43,7 +46,7 @@ def private_key(tmp_path_factory):
     return key, path
 
 
-def _make_client(private_key, cache_enabled: bool):
+def _make_client(private_key, cache_enabled: bool, redis=REDIS):
     _, public_path = private_key
     password = os.environ.get("CATALOG_DB_PASSWORD", "catalog-local")
     with pytest.MonkeyPatch.context() as env:
@@ -51,7 +54,7 @@ def _make_client(private_key, cache_enabled: bool):
             "CATALOG_DATABASE_URL",
             f"postgresql+asyncpg://catalog_user:{password}@{DB[0]}:{DB[1]}/catalogdb",
         )
-        env.setenv("REDIS_URL", f"redis://{REDIS[0]}:{REDIS[1]}/0")
+        env.setenv("REDIS_URL", f"redis://{redis[0]}:{redis[1]}/0")
         env.setenv("JWT_PUBLIC_KEY_PATH", str(public_path))
         env.setenv("CATALOG_CACHE_ENABLED", str(cache_enabled).lower())
         from catalog_svc.main import create_app
@@ -68,6 +71,12 @@ def client(private_key):
 @pytest.fixture(scope="module")
 def uncached_client(private_key):
     yield from _make_client(private_key, cache_enabled=False)
+
+
+@pytest.fixture(scope="module")
+def redis_down_client(private_key):
+    # Nothing listens on port 1; the Redis client connects lazily, so startup still works.
+    yield from _make_client(private_key, cache_enabled=True, redis=("127.0.0.1", 1))
 
 
 def token(private_key, user_id: int, role: str) -> dict[str, str]:
@@ -279,3 +288,30 @@ def test_probes(client):
     ready = client.get("/readyz")
     assert ready.status_code == 200
     assert ready.json()["checks"] == {"db": "ok", "redis": "ok"}
+
+
+def test_a_late_cache_write_cannot_resurrect_an_old_detail(client, organizer):
+    event_id = create(client, organizer, unique_city()).json()["id"]
+    cache = Redis(host=REDIS[0], port=REDIS[1], decode_responses=True)
+    before = int(cache.get(event_version_key(event_id)) or 0)
+    stale = client.get(f"/api/events/{event_id}").text  # a reader that read the DB before...
+
+    patched = client.patch(f"/api/events/{event_id}", json={"title": "Renamed"}, headers=organizer)
+    assert patched.status_code == 200
+    # ...stores its body only after the write committed: it lands under the old version.
+    cache.set(detail_key(event_id, before), stale)
+
+    detail = client.get(f"/api/events/{event_id}")
+    assert (detail.headers["x-cache"], detail.json()["title"]) == ("MISS", "Renamed")
+    cache.close()
+
+
+def test_redis_down_serves_from_the_database(redis_down_client, client, organizer):
+    city = unique_city()
+    event_id = create(client, organizer, city).json()["id"]
+
+    detail = redis_down_client.get(f"/api/events/{event_id}")
+    assert (detail.status_code, detail.headers["x-cache"]) == (200, "BYPASS")
+    listed = redis_down_client.get("/api/events", params={"city": city})
+    assert (listed.status_code, listed.headers["x-cache"]) == (200, "BYPASS")
+    assert [event["id"] for event in listed.json()] == [event_id]

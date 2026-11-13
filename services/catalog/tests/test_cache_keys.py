@@ -30,5 +30,6 @@ def test_list_version_is_part_of_the_key():
     assert list_key(7, query).startswith("catalog:v1:events:7:")
 
 
-def test_detail_key():
-    assert detail_key(42) == "catalog:v1:event:42"
+def test_detail_key_embeds_the_event_version():
+    assert detail_key(42, 0) == "catalog:v1:event:42:0"
+    assert detail_key(42, 1) != detail_key(42, 0)

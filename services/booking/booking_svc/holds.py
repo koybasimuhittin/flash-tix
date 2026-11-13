@@ -2,6 +2,10 @@
 
 Every state change runs as a Lua script: Redis executes a script as one atomic step, so
 "check every seat, then hold all or none" can't interleave with another user's request.
+
+Hold expiry times come from the booking servers' clocks (passed in as now_ms), not from
+Redis TIME, so the servers' clocks should be NTP-synchronised; a small skew only shifts
+when a hold lapses by that much.
 """
 
 from collections.abc import Awaitable, Callable

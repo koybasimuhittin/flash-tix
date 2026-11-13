@@ -8,6 +8,10 @@ keep their own database pools exactly as in the microservice deployment.
 The one real difference is booking → catalog: in the microservices it is an HTTP call over the
 network, here booking's catalog client is pointed at this very app through an in-process
 ASGI transport, so the request never leaves the process. That hop is what is compared.
+
+Connection pools: one monolith replica opens all three services' pools, so its maximum is
+the sum of AUTH_, CATALOG_ and BOOKING_DB_POOL_SIZE + _MAX_OVERFLOW. Size them so that
+replicas × that sum stays below Postgres max_connections.
 """
 
 from collections.abc import AsyncIterator

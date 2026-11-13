@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockOffset, formatDuration, toMillis } from "./format";
+import { clockOffset, countdownParts, formatDuration, toMillis } from "./format";
 
 describe("formatDuration", () => {
   it("shows a fresh 600 s hold as 10:00, also with a fraction of a second extra", () => {
@@ -38,5 +38,12 @@ describe("clockOffset", () => {
   it("is negative when the local clock runs ahead", () => {
     const sentAt = serverMs + 3_000;
     expect(clockOffset(server, sentAt, sentAt)).toBe(-3_000);
+  });
+});
+
+describe("countdownParts", () => {
+  it("splits seconds into days, hours, minutes and seconds", () => {
+    expect(countdownParts(90_061.7)).toEqual({ days: 1, hours: 1, minutes: 1, seconds: 1 });
+    expect(countdownParts(-1)).toEqual({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   });
 });

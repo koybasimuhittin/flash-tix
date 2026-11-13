@@ -1,6 +1,8 @@
-# FlashTix local workflow. Run `make help` for every target.
+# FlashTix local workflow. `make help` lists every target.
+# MONOLITH=1 runs the same code as one process instead of three services:
+#   MONOLITH=1 make up / down / logs / ps   (use the same MONOLITH value for every target)
 
-COMPOSE := docker compose
+COMPOSE := docker compose$(if $(MONOLITH), -f docker-compose.yml -f docker-compose.monolith.yml)
 VENV    := .venv
 # Interpreter for `make dev`: containers and CI run 3.12, so prefer it when installed.
 PYTHON  ?= $(shell command -v python3.12 || command -v python3.13 || command -v python3)
@@ -55,8 +57,8 @@ seed: ## Create the demo events (idempotent) and re-arm the flash sale to open i
 smoke: ## End-to-end check: holds, purchase, ticket PDF, 20-buyer race, oversell check
 	@python3 scripts/smoke_test.py
 
-oversell: ## Prove no seat was sold twice and no event beyond its capacity
-	@python3 scripts/check_oversell.py
+oversell: ## No seat sold twice, sold <= capacity; strict=1 (after load tests) fails on unknown events
+	@python3 scripts/check_oversell.py $(if $(strict),--strict)
 
 fe-dev: ## Vite dev server on http://localhost:5173 (proxies /api to the gateway on :8080)
 	cd frontend && npm install && npm run dev

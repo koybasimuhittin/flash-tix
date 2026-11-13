@@ -39,14 +39,34 @@ jobs:
         run: docker compose logs
 
   e2e:
-    # On a fresh machine: the whole stack from scratch, then the scripts.
+    # The whole stack from scratch on a fresh machine, then the scripts, once as microservices
+    # and once as the monolith: same code, same API, same checks.
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: microservices
+            monolith: ""
+            compose_file: docker-compose.yml
+          - mode: monolith
+            monolith: "1"
+            compose_file: docker-compose.yml:docker-compose.monolith.yml
+    name: e2e (${{ matrix.mode }})
+    env:
+      MONOLITH: ${{ matrix.monolith }}
+      COMPOSE_FILE: ${{ matrix.compose_file }}
     steps:
       - uses: actions/checkout@v4
       - run: make up # creates .env and keys, builds every image, waits until all are healthy
       - run: make seed
       - run: make smoke
-      - run: make report
+      - run: make oversell strict=1 # a fresh stack has only real events: unknown ones are a bug
+      - name: today's report (Istanbul) contains the smoke test's bookings
+        run: |
+          summary="$(make report date="$(TZ=Europe/Istanbul date +%F)")"
+          echo "$summary"
+          python3 -c 'import json, sys; s = json.loads(sys.argv[1]); assert s["bookings"] > 0, s' "$summary"
       - if: failure()
         run: docker compose logs
 

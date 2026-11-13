@@ -18,6 +18,7 @@ jobs:
             requirements-dev.txt
             services/**/pyproject.toml
             services/**/requirements.txt
+            functions/**/requirements.txt
       - run: pip install -r requirements-dev.txt
       - run: make lint PY=python
       # Integration tests use the compose postgres (127.0.0.1:5433) and redis (127.0.0.1:6380).
@@ -34,6 +35,18 @@ jobs:
       - run: docker compose up -d --wait postgres redis auth-service catalog-service gateway
       - run: make db-check
       - run: make gateway-check
+      - if: failure()
+        run: docker compose logs
+
+  e2e:
+    # On a fresh machine: the whole stack from scratch, then the scripts.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make up # creates .env and keys, builds every image, waits until all are healthy
+      - run: make seed
+      - run: make smoke
+      - run: make report
       - if: failure()
         run: docker compose logs
 

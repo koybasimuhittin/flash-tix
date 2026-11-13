@@ -1,0 +1,49 @@
+# FlashTix local workflow. Run `make help` for every target.
+
+COMPOSE := docker compose
+VENV    := .venv
+# Interpreter for `make dev`: containers and CI run 3.12, so prefer it when installed.
+PYTHON  ?= $(shell command -v python3.12 || command -v python3.13 || command -v python3)
+PY      ?= $(VENV)/bin/python
+
+.DEFAULT_GOAL := help
+.PHONY: help dev keys up down clean logs ps test lint fmt
+
+help: ## List targets
+	@grep -E '^[a-z.-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
+
+dev: ## Create .venv with the shared library, ruff and pytest
+	$(PYTHON) -m venv $(VENV)
+	$(VENV)/bin/pip install -q -r requirements-dev.txt
+
+keys: ## Generate local JWT RS256 keys into secrets/
+	./scripts/gen-keys.sh
+
+.env:
+	cp .env.example .env
+
+up: keys .env ## Build and start the stack (gateway on http://localhost:8080)
+	$(COMPOSE) up --build -d
+
+down: ## Stop the stack
+	$(COMPOSE) down
+
+clean: ## Stop the stack and delete its volumes
+	$(COMPOSE) down -v
+
+logs: ## Follow logs: make logs s=booking-service
+	$(COMPOSE) logs -f $(s)
+
+ps: ## List containers
+	$(COMPOSE) ps
+
+test: ## Run all Python tests
+	$(PY) -m pytest
+
+lint: ## Lint and check formatting
+	$(PY) -m ruff check .
+	$(PY) -m ruff format --check .
+
+fmt: ## Auto-fix lint issues and format
+	$(PY) -m ruff check --fix .
+	$(PY) -m ruff format .

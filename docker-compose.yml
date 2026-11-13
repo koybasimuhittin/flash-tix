@@ -35,6 +35,36 @@ services:
       timeout: 3s
       retries: 30
 
+  auth-service:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE: auth
+    environment:
+      SERVICE_NAME: auth
+      LOG_LEVEL: INFO
+      JWT_PRIVATE_KEY_PATH: /secrets/jwt_private.pem
+      JWT_PUBLIC_KEY_PATH: /secrets/jwt_public.pem
+      AUTH_DATABASE_URL: postgresql+asyncpg://auth_user:${AUTH_DB_PASSWORD:?}@postgres:5432/authdb
+      BOOTSTRAP_ORGANIZER_EMAIL: ${BOOTSTRAP_ORGANIZER_EMAIL:-}
+      BOOTSTRAP_ORGANIZER_PASSWORD: ${BOOTSTRAP_ORGANIZER_PASSWORD:-}
+      BOOTSTRAP_ORGANIZER_NAME: ${BOOTSTRAP_ORGANIZER_NAME:-Organizer}
+    volumes:
+      - ./secrets:/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck: &service-healthcheck
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   pgdata:
   redisdata:

@@ -23,6 +23,9 @@ RUN pip install -r /tmp/requirements.txt
 COPY ${SERVICE}/ /app/
 
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app
+# Local file storage (STORAGE_BACKEND=local). A new, empty Docker volume mounted here copies
+# this directory's ownership, so the non-root user can write to it.
+RUN mkdir -p /data/storage/tickets /data/storage/reports && chown -R app:app /data/storage
 USER app
 
 EXPOSE 8000

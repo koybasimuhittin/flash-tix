@@ -31,7 +31,7 @@ services:
       MAX_SEATS_PER_BOOKING: ${MAX_SEATS_PER_BOOKING:-6}
       MOCK_PAYMENT_LATENCY_MS: ${MOCK_PAYMENT_LATENCY_MS:-0}
       EVENT_BACKEND: http
-      TICKET_FUNCTION_URL: http://ticket-pdf:8080/
+      WORKER_URL: http://worker:8000
       STORAGE_BACKEND: local
       LOCAL_STORAGE_DIR: /data/storage
     volumes:
@@ -42,7 +42,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ticket-pdf:
+      worker:
         condition: service_healthy
     healthcheck:
       test:

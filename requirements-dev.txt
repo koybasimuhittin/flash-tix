@@ -6,6 +6,6 @@ httpx==0.28.1
 -r services/auth/requirements.txt
 -r services/catalog/requirements.txt
 -r services/booking/requirements.txt
--r functions/ticket_pdf/requirements.txt
--r functions/daily_report/requirements.txt
-pypdf==7.1.0  # ticket-pdf tests read the rendered PDFs
+-r services/worker/requirements.txt
+pypdf==7.1.0  # worker tests read the rendered PDFs
+psycopg[binary]==3.3.9  # worker report tests seed bookings directly

@@ -139,6 +139,23 @@ services:
       timeout: 3s
       retries: 20
 
+  daily-report: # the Cloud Function; locally `make report` stands in for Cloud Scheduler
+    build:
+      context: ./functions/daily_report
+      dockerfile: Dockerfile.local
+    ports:
+      - "127.0.0.1:8091:8080"
+    environment:
+      REPORT_DATABASE_URL: postgresql://report_reader:${REPORT_DB_PASSWORD:?}@postgres:5432/bookingdb
+      STORAGE_BACKEND: local
+      LOCAL_STORAGE_DIR: /data/storage
+    volumes:
+      - storage:/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No healthcheck: its only endpoint *generates* a report, so polling it would write CSVs.
+
   frontend:
     build: ./frontend
     healthcheck:

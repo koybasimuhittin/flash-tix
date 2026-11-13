@@ -23,6 +23,8 @@ jobs:
       # Integration tests use the compose postgres (127.0.0.1:5433) and redis (127.0.0.1:6380).
       - run: cp .env.example .env && docker compose up -d --wait postgres redis
       - run: make test PY=python
+        env:
+          REQUIRE_DB: "1" # DB tests that honor it fail instead of silently skipping
 
   data:
     runs-on: ubuntu-latest

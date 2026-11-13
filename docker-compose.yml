@@ -1,0 +1,40 @@
+# Local stack. Values come from .env (make up copies .env.example).
+name: flashtix
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make up, or copy .env.example to .env}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:?}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?}
+      BOOKING_DB_PASSWORD: ${BOOKING_DB_PASSWORD:?}
+      REPORT_DB_PASSWORD: ${REPORT_DB_PASSWORD:?}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
+    ports:
+      - "127.0.0.1:5433:5432" # debugging only: psql -h 127.0.0.1 -p 5433 -U postgres
+    healthcheck:
+      # Over TCP on purpose: during first-time init Postgres listens on the socket only,
+      # so this stays unhealthy until the init script has finished.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    # Append-only file, fsync once per second: holds may lose ~1 s on a crash (acceptable).
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
+  redisdata:

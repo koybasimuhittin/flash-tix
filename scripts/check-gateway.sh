@@ -89,6 +89,12 @@ if [[ $booking == 401 && $upstream == booking-service:* ]]; then
   restart() { docker compose up -d --wait --no-deps booking-service >/dev/null 2>&1; }
   trap restart EXIT
   docker compose stop booking-service >/dev/null 2>&1
+  # Until the cached address lapses (resolver valid=10s) a connect may hang and end as 504 after
+  # proxy_connect_timeout; once the name no longer resolves the gateway answers 502 at once.
+  for _ in $(seq 20); do
+    [[ $(status --max-time 5 "$base/api/booking/me") == 502 ]] && break
+    sleep 1
+  done
   json_error 502 UPSTREAM_UNAVAILABLE "$base/api/booking/me"
   restart && trap - EXIT
   # The gateway re-resolves names at most every 10 s (resolver valid=10s), so allow for that.

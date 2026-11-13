@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from catalog_svc.cache import CatalogCache
 from catalog_svc.config import CatalogSettings
-from catalog_svc.models import Base
+from catalog_svc.models import SCHEMA_LOCK_KEY, Base
 from catalog_svc.routes import CatalogState, router
 from flashtix_common.db import init_schema, make_engine, make_sessionmaker
 from flashtix_common.health import db_check, make_health_router, redis_check
@@ -13,8 +13,6 @@ from flashtix_common.logging import setup_logging
 from flashtix_common.middleware import RequestContextMiddleware
 from flashtix_common.redis import make_redis
 from flashtix_common.security import TokenVerifier
-
-SCHEMA_LOCK_KEY = 1002
 
 
 @asynccontextmanager
@@ -60,6 +58,3 @@ def create_app() -> FastAPI:
 
     app.include_router(make_health_router({"db": database_ready, "redis": redis_ready}))
     return app
-
-
-app = create_app()

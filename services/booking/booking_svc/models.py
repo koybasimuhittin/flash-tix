@@ -18,6 +18,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 SEAT_UNIQUE_CONSTRAINT = "uq_booking_seats_event_seat"
 
 
+# Postgres advisory lock taken by init_schema; unique per service.
+SCHEMA_LOCK_KEY = 1003
+
+
 class Base(DeclarativeBase):
     pass
 

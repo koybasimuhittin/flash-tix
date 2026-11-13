@@ -27,4 +27,4 @@ RUN mkdir -p /data/storage/tickets /data/storage/reports && chown -R app:app /da
 USER app
 
 EXPOSE 8000
-CMD ["uvicorn", "monolith_svc.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+CMD ["uvicorn", "--factory", "monolith_svc.main:create_app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

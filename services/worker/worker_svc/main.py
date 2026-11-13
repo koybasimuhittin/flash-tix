@@ -39,6 +39,3 @@ def create_app() -> FastAPI:
 
     app.include_router(make_health_router({"db": database_ready}))
     return app
-
-
-app = create_app()

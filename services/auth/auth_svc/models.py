@@ -3,6 +3,9 @@ from datetime import datetime
 from sqlalchemy import BigInteger, CheckConstraint, DateTime, Identity, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+# Postgres advisory lock taken by init_schema; unique per service.
+SCHEMA_LOCK_KEY = 1001
+
 
 class Base(DeclarativeBase):
     pass

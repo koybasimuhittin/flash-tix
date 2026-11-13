@@ -10,7 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    SERVICE_MODULE=${SERVICE}_svc.main:app
+    SERVICE_MODULE=${SERVICE}_svc.main:create_app
 
 WORKDIR /app
 
@@ -31,4 +31,4 @@ USER app
 EXPOSE 8000
 # One uvicorn worker per container; scale with replicas. Request logging is done by
 # flashtix_common's middleware, so uvicorn's access log is off.
-CMD ["sh", "-c", "exec uvicorn \"$SERVICE_MODULE\" --host 0.0.0.0 --port 8000 --no-access-log"]
+CMD ["sh", "-c", "exec uvicorn --factory \"$SERVICE_MODULE\" --host 0.0.0.0 --port 8000 --no-access-log"]

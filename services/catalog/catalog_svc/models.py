@@ -14,6 +14,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+# Postgres advisory lock taken by init_schema; unique per service.
+SCHEMA_LOCK_KEY = 1002
+
 
 class Base(DeclarativeBase):
     pass

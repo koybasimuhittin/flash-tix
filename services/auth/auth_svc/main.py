@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 
 from auth_svc.config import AuthSettings
 from auth_svc.crypto import TokenIssuer, hash_password
-from auth_svc.models import Base, User
+from auth_svc.models import SCHEMA_LOCK_KEY, Base, User
 from auth_svc.routes import AuthState, router
 from flashtix_common.db import init_schema, make_engine, make_sessionmaker
 from flashtix_common.health import db_check, make_health_router
@@ -18,8 +18,6 @@ from flashtix_common.middleware import RequestContextMiddleware
 from flashtix_common.security import TokenVerifier
 
 logger = logging.getLogger("auth_svc")
-
-SCHEMA_LOCK_KEY = 1001
 
 
 @asynccontextmanager
@@ -98,6 +96,3 @@ def create_app() -> FastAPI:
 
     app.include_router(make_health_router({"db": database_ready}))
     return app
-
-
-app = create_app()

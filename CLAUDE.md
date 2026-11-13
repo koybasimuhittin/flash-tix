@@ -9,7 +9,7 @@ FlashTix is a flash-sale event-ticketing system: three FastAPI services (auth, c
 ## Rules
 1. **Same code locally and wherever it is deployed.** Environment differences go through settings and adapters only (`EVENT_BACKEND`, `STORAGE_BACKEND`, URLs, credentials); no `if production:` forks.
 2. **Explain choices.** A new component or dependency comes with its alternatives and the reason for the pick, in the PR description.
-3. **Never commit secrets** (`.env`, `secrets/`, `*.tfvars`, Terraform state).
+3. **Never commit secrets** (`.env`, `secrets/`).
 4. **Never block the event loop:** bcrypt, PDF rendering and sync SDK calls go through a threadpool. Never hold a DB session across Redis, HTTP or sleep calls.
 5. **Tests:** pytest from the repo root (`make test`). Database tests use the compose stack (Postgres `127.0.0.1:5433`, Redis `127.0.0.1:6380`) and skip without it, unless `REQUIRE_DB=1` (set in CI), where they fail.
 6. **Apple Silicon:** images for amd64 hosts are built with `docker buildx build --platform linux/amd64`.

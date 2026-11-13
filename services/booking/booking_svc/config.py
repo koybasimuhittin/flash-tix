@@ -23,7 +23,8 @@ class BookingSettings(BaseServiceSettings):
     purchase_grace_seconds: int = 30  # holds can't lapse between verify and commit
     mock_payment_latency_ms: int = 0  # simulates an external payment provider
 
-    # `log` only logs the event (no ticket backend yet).
+    # `http` pushes to the local ticket-pdf container.
     event_backend: Literal["http", "pubsub", "log"] = "log"
+    ticket_function_url: str = "http://ticket-pdf:8080/"  # EVENT_BACKEND=http only
     storage_backend: Literal["local", "gcs"] = "local"
     local_storage_dir: str = "/data/storage"

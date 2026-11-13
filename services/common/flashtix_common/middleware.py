@@ -37,15 +37,20 @@ class RequestContextMiddleware:
         status = 500
         response_started = False
         start = time.perf_counter()
+        # When the client got the last byte. Background tasks (e.g. publishing an event after a
+        # purchase) run after that but still inside this call, and must not count as latency.
+        finished: float | None = None
 
         async def send_with_request_id(message: Message) -> None:
-            nonlocal status, response_started
+            nonlocal status, response_started, finished
             if message["type"] == "http.response.start":
                 status = message["status"]
                 response_started = True
                 headers = [*message.get("headers", []), (b"x-request-id", request_id.encode())]
                 message = {**message, "headers": headers}
             await send(message)
+            if message["type"] == "http.response.body" and not message.get("more_body", False):
+                finished = time.perf_counter()
 
         try:
             await self.app(scope, receive, send_with_request_id)
@@ -66,9 +71,9 @@ class RequestContextMiddleware:
                     "headers": [(b"content-type", b"application/json")],
                 }
             )
-            await send({"type": "http.response.body", "body": _INTERNAL_ERROR_BODY})
+            await send_with_request_id({"type": "http.response.body", "body": _INTERNAL_ERROR_BODY})
         finally:
-            duration_ms = round((time.perf_counter() - start) * 1000, 1)
+            duration_ms = round(((finished or time.perf_counter()) - start) * 1000, 1)
             slow_or_failed = status >= 500 or duration_ms > self.slow_request_ms
             logger.log(
                 logging.WARNING if slow_or_failed else logging.DEBUG,

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -231,15 +232,62 @@ async def my_bookings(
     return [await _booking_out(state, booking) for booking in bookings]
 
 
+async def _visible_booking(
+    state: BookingState, booking_id: uuid.UUID, principal: Principal, organizer_ok: bool = False
+) -> Booking:
+    async with state.sessionmaker() as session:
+        booking = await session.get(Booking, booking_id)
+    allowed = booking is not None and (
+        booking.user_id == principal.user_id or (organizer_ok and principal.role == "organizer")
+    )
+    if not allowed:
+        # 404 rather than 403 for other users' bookings: don't confirm that an id exists.
+        raise _error(status.HTTP_404_NOT_FOUND, "BOOKING_NOT_FOUND")
+    return booking
+
+
 @router.get("/{booking_id}", response_model=BookingOut)
 async def get_booking(
     booking_id: uuid.UUID,
     principal: Principal = Depends(get_principal),
     state: BookingState = Depends(get_state),
 ) -> BookingOut:
-    async with state.sessionmaker() as session:
-        booking = await session.get(Booking, booking_id)
-    if booking is None or booking.user_id != principal.user_id:
-        # 404 rather than 403 for other users' bookings: don't confirm that an id exists.
-        raise _error(status.HTTP_404_NOT_FOUND, "BOOKING_NOT_FOUND")
+    booking = await _visible_booking(state, booking_id, principal)
     return await _booking_out(state, booking)
+
+
+@router.get(
+    "/{booking_id}/ticket",
+    responses={200: {"content": {"application/pdf": {}}}, 202: {"description": "Not ready yet"}},
+)
+async def download_ticket(
+    booking_id: uuid.UUID,
+    principal: Principal = Depends(get_principal),
+    state: BookingState = Depends(get_state),
+) -> Response:
+    """The ticket-pdf function writes the PDF a few seconds after purchase; until then 202."""
+    booking = await _visible_booking(state, booking_id, principal)
+    name = ticket_name(booking.id)
+    if not await state.storage.exists(name):
+        return JSONResponse({"status": "pending"}, status_code=status.HTTP_202_ACCEPTED)
+    return Response(
+        await state.storage.read(name),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="flashtix-{booking.id}.pdf"'},
+    )
+
+
+@router.post("/{booking_id}/republish", status_code=status.HTTP_202_ACCEPTED)
+async def republish(
+    booking_id: uuid.UUID,
+    background: BackgroundTasks,
+    principal: Principal = Depends(get_principal),
+    state: BookingState = Depends(get_state),
+) -> dict[str, str]:
+    """Recovery when the original booking.confirmed publish was lost: send it again. The function
+    overwrites tickets/{id}.pdf, so publishing twice is harmless."""
+    booking = await _visible_booking(state, booking_id, principal, organizer_ok=True)
+    background.add_task(
+        publish_with_retries, state.publisher, build_payload(booking, request_id_var.get())
+    )
+    return {"status": "queued"}

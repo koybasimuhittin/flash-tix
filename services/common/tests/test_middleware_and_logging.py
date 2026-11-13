@@ -1,9 +1,10 @@
 import json
 import logging
+import time
 import uuid
 
 import pytest
-from fastapi import FastAPI
+from fastapi import BackgroundTasks, FastAPI
 from fastapi.testclient import TestClient
 
 from flashtix_common.logging import JsonFormatter, request_id_var
@@ -103,6 +104,22 @@ def test_fast_successful_request_is_logged_at_debug(client, caplog):
         client.get("/ok")
     record = next(r for r in caplog.records if r.name == "flashtix.request")
     assert record.levelno == logging.DEBUG
+
+
+def test_background_tasks_do_not_count_as_request_time(caplog):
+    app = FastAPI()
+    app.add_middleware(RequestContextMiddleware, slow_request_ms=500)
+
+    @app.post("/purchase")
+    async def purchase(background: BackgroundTasks) -> dict:
+        background.add_task(time.sleep, 0.7)  # e.g. publishing an event after the response
+        return {"ok": True}
+
+    with caplog.at_level(logging.DEBUG, logger="flashtix.request"):
+        assert TestClient(app).post("/purchase").status_code == 200
+    record = next(r for r in caplog.records if r.name == "flashtix.request")
+    assert record.duration_ms < 500
+    assert record.levelno == logging.DEBUG  # not flagged as a slow request
 
 
 def test_json_formatter_includes_context_and_extra_fields():

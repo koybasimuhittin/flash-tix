@@ -3,6 +3,7 @@
 STORAGE_BACKEND=local reads a shared folder; `gcs` arrives with the cloud phase.
 """
 
+import asyncio
 import uuid
 from pathlib import Path
 from typing import Protocol
@@ -22,7 +23,8 @@ class LocalStorage:
         return (self.root / name).is_file()
 
     async def read(self, name: str) -> bytes:
-        return (self.root / name).read_bytes()
+        # File I/O off the event loop (never block the event loop).
+        return await asyncio.to_thread((self.root / name).read_bytes)
 
 
 def make_storage(backend: str, local_dir: str) -> TicketStorage:

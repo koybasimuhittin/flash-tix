@@ -4,6 +4,7 @@ STORAGE_BACKEND=local reads a shared folder; `gcs` arrives with the cloud phase.
 """
 
 import asyncio
+import datetime
 import uuid
 from pathlib import Path
 from typing import Protocol
@@ -31,6 +32,11 @@ def make_storage(backend: str, local_dir: str) -> TicketStorage:
     if backend == "local":
         return LocalStorage(local_dir)
     raise NotImplementedError(f"STORAGE_BACKEND={backend!r} is not supported")
+
+
+def report_name(day: datetime.date) -> str:
+    """Built from the typed date, never from the raw path text (no traversal via the URL)."""
+    return f"reports/{day.isoformat()}.csv"
 
 
 def ticket_name(booking_id: uuid.UUID) -> str:

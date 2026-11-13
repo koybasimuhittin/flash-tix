@@ -2,9 +2,18 @@ import asyncio
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -15,11 +24,25 @@ from booking_svc.config import BookingSettings
 from booking_svc.events import EventPublisher, build_payload, publish_with_retries
 from booking_svc.holds import HoldStore
 from booking_svc.models import Booking, BookingSeat
-from booking_svc.schemas import AvailabilityOut, BookingOut, HoldIn, HoldOut, PurchaseIn
+from booking_svc.schemas import (
+    AvailabilityOut,
+    BookingOut,
+    EventStatsOut,
+    HoldIn,
+    HoldOut,
+    PurchaseIn,
+)
 from booking_svc.seats import SeatRequestError, check_seat_request, check_seats_exist, price_seats
-from booking_svc.storage import TicketStorage, ticket_name
+from booking_svc.storage import TicketStorage, report_name, ticket_name
 from flashtix_common.logging import request_id_var
-from flashtix_common.security import Principal, get_optional_principal, get_principal
+from flashtix_common.security import (
+    Principal,
+    get_optional_principal,
+    get_principal,
+    require_organizer,
+)
+
+MAX_STATS_EVENTS = 100
 
 
 @dataclass
@@ -230,6 +253,54 @@ async def my_bookings(
             )
         ).all()
     return [await _booking_out(state, booking) for booking in bookings]
+
+
+def _parse_event_ids(raw: str) -> list[int]:
+    try:
+        ids = [int(part) for part in raw.split(",") if part.strip()]
+    except ValueError as exc:
+        raise _error(status.HTTP_422_UNPROCESSABLE_CONTENT, "INVALID_EVENT_IDS") from exc
+    if not ids or len(ids) > MAX_STATS_EVENTS:
+        raise _error(status.HTTP_422_UNPROCESSABLE_CONTENT, "INVALID_EVENT_IDS")
+    return list(dict.fromkeys(ids))  # drop duplicates, keep order
+
+
+@router.get("/stats", response_model=list[EventStatsOut])
+async def event_stats(
+    event_ids: str = Query(description=f"Comma-separated event ids, at most {MAX_STATS_EVENTS}"),
+    _: Principal = Depends(require_organizer),
+    state: BookingState = Depends(get_state),
+) -> list[EventStatsOut]:
+    """Sold / held per event for the organizer's "My events" page: ONE request for all events,
+    so the page doesn't hit the per-user rate limit. Any organizer may read any event
+    (single-organizer simplification). Unknown ids count as zeros."""
+    ids = _parse_event_ids(event_ids)
+    for event_id in ids:
+        await _ensure_sold_loaded(state, event_id)
+    counts = await state.holds.counts(ids, now_ms())
+    return [
+        EventStatsOut(event_id=event_id, sold=sold, held=held)
+        for event_id, (sold, held) in zip(ids, counts, strict=True)
+    ]
+
+
+@router.get("/reports/{report_date}", responses={200: {"content": {"text/csv": {}}}})
+async def daily_report(
+    report_date: date,
+    _: Principal = Depends(require_organizer),
+    state: BookingState = Depends(get_state),
+) -> Response:
+    """The CSV written by the daily-report function for that (Europe/Istanbul) day."""
+    name = report_name(report_date)
+    if not await state.storage.exists(name):
+        raise _error(status.HTTP_404_NOT_FOUND, "REPORT_NOT_FOUND")
+    return Response(
+        await state.storage.read(name),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="flashtix-report-{report_date}.csv"'
+        },
+    )
 
 
 async def _visible_booking(

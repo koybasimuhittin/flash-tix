@@ -15,6 +15,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+SEAT_UNIQUE_CONSTRAINT = "uq_booking_seats_event_seat"
+
 
 class Base(DeclarativeBase):
     pass
@@ -50,7 +52,7 @@ class Booking(Base):
 class BookingSeat(Base):
     __tablename__ = "booking_seats"
     # The final oversell guarantee: whatever Redis says, a seat is sold at most once.
-    __table_args__ = (UniqueConstraint("event_id", "seat_id", name="uq_booking_seats_event_seat"),)
+    __table_args__ = (UniqueConstraint("event_id", "seat_id", name=SEAT_UNIQUE_CONSTRAINT),)
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     booking_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bookings.id", ondelete="CASCADE"))

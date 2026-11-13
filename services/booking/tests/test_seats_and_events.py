@@ -4,10 +4,12 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from booking_svc.catalog_client import parse_event
 from booking_svc.events import WorkerPublisher, build_payload, publish_with_retries
-from booking_svc.models import Booking, BookingSeat
+from booking_svc.models import SEAT_UNIQUE_CONSTRAINT, Booking, BookingSeat
+from booking_svc.routes import is_seat_conflict
 from booking_svc.seats import (
     SeatRequestError,
     check_seat_request,
@@ -158,3 +160,22 @@ async def test_worker_publisher_does_not_retry_an_invalid_event():
     assert await publish_with_retries(publisher, {"booking_id": "b-1"}, base_delay_s=0) is True
     await publisher.aclose()
     assert len(calls) == 1  # logged and dropped, not retried
+
+
+class _UniqueViolation(Exception):
+    def __init__(self, constraint_name: str | None) -> None:
+        super().__init__("duplicate key value")
+        self.constraint_name = constraint_name
+
+
+def _integrity_error(constraint: str | None, message: str = "") -> IntegrityError:
+    original = Exception(message)
+    original.__cause__ = _UniqueViolation(constraint) if constraint is not None else None
+    return IntegrityError("INSERT …", {}, original)
+
+
+def test_only_the_seat_constraint_means_seat_already_sold():
+    assert is_seat_conflict(_integrity_error(SEAT_UNIQUE_CONSTRAINT))
+    assert not is_seat_conflict(_integrity_error("bookings_pkey"))
+    assert is_seat_conflict(_integrity_error(None, f'violates "{SEAT_UNIQUE_CONSTRAINT}"'))
+    assert not is_seat_conflict(_integrity_error(None, "violates not-null constraint"))

@@ -89,6 +89,17 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Errors the gateway answers itself (rate limit, service down or slow). They use the same
+ * `{detail: {code}}` shape as the services, so they map like any other code.
+ */
+const GATEWAY_MESSAGES: Record<string, string> = {
+  RATE_LIMITED: "Too many requests. Slow down and try again in a moment.",
+  UPSTREAM_UNAVAILABLE: "This part of FlashTix is not reachable right now. Try again in a few seconds.",
+  SERVICE_UNAVAILABLE: "FlashTix is busy or restarting. Try again in a few seconds.",
+  UPSTREAM_TIMEOUT: "The server took too long to answer. Try again.",
+};
+
 function describeDetail(status: number, detail: unknown): string {
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
@@ -96,10 +107,10 @@ function describeDetail(status: number, detail: unknown): string {
     return detail.map((e: { msg?: string }) => e.msg ?? "invalid input").join("; ");
   }
   if (detail && typeof detail === "object" && "code" in detail) {
-    return String((detail as { code: unknown }).code);
+    const code = String((detail as { code: unknown }).code);
+    return GATEWAY_MESSAGES[code] ?? code;
   }
-  if (status === 429) return "Too many requests";
-  return `Request failed (${status})`;
+  return `Something went wrong (HTTP ${status}). Try again.`;
 }
 
 async function send(method: string, path: string, body?: unknown): Promise<Response> {
@@ -120,7 +131,7 @@ async function send(method: string, path: string, body?: unknown): Promise<Respo
   try {
     detail = ((await res.json()) as { detail?: unknown }).detail ?? null;
   } catch {
-    // Not JSON, e.g. an nginx 429 or 502 page.
+    // Not JSON: e.g. the Vite dev proxy when the gateway itself is down.
   }
   throw new ApiError(res.status, detail);
 }
@@ -162,10 +173,7 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
 
 /** Turns any error into a short message for the UI. */
 export function errorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    if (err.status === 429) return "Too many requests. Slow down and try again in a moment.";
-    return err.message;
-  }
+  if (err instanceof ApiError) return err.message;
   if (err instanceof TypeError) return "Cannot reach the server.";
   return err instanceof Error ? err.message : String(err);
 }

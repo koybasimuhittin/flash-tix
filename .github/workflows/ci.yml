@@ -28,8 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: cp .env.example .env
-      - run: docker compose up -d --wait postgres redis
+      - run: cp .env.example .env && make keys
+      - run: docker compose up -d --wait postgres redis auth-service catalog-service gateway
       - run: make db-check
+      - run: make gateway-check
       - if: failure()
-        run: docker compose logs postgres
+        run: docker compose logs

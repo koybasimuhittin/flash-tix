@@ -7,7 +7,7 @@ PYTHON  ?= $(shell command -v python3.12 || command -v python3.13 || command -v 
 PY      ?= $(VENV)/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help dev keys up down clean logs ps psql db-check test lint fmt
+.PHONY: help dev keys up down clean logs ps psql db-check gateway-check test lint fmt
 
 help: ## List targets
 	@grep -E '^[a-z.-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
@@ -42,6 +42,9 @@ psql: ## Open psql as superuser: make psql db=bookingdb
 
 db-check: ## Verify DB owners, per-service isolation and the read-only report role
 	./scripts/check-db-setup.sh
+
+gateway-check: ## Verify gateway routing, request ids and the booking rate limit (:8080)
+	./scripts/check-gateway.sh
 
 test: ## Run all Python tests
 	$(PY) -m pytest

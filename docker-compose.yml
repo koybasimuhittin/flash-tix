@@ -90,6 +90,28 @@ services:
         condition: service_healthy
     healthcheck: *service-healthcheck
 
+  gateway:
+    build: ./gateway
+    ports:
+      - "8080:80" # the only public entry point
+    environment:
+      BOOKING_RATE_LIMIT: ${BOOKING_RATE_LIMIT:-5r/s}
+      BOOKING_RATE_BURST: ${BOOKING_RATE_BURST:-10}
+      GATEWAY_ACCESS_LOG: ${GATEWAY_ACCESS_LOG:-/dev/stdout}
+      GATEWAY_RESOLVER: 127.0.0.11 # Docker's embedded DNS
+    # Only the services that exist so far: upstreams are resolved per request, so booking and
+    # frontend can join later without restarting the gateway (they answer 502 until then).
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/gateway/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   pgdata:
   redisdata:

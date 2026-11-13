@@ -7,7 +7,7 @@ PYTHON  ?= $(shell command -v python3.12 || command -v python3.13 || command -v 
 PY      ?= $(VENV)/bin/python
 
 .DEFAULT_GOAL := help
-.PHONY: help dev keys up down clean logs ps psql db-check gateway-check test lint fmt
+.PHONY: help dev keys up down clean logs ps psql db-check gateway-check fe-dev test lint fmt
 
 help: ## List targets
 	@grep -E '^[a-z.-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
@@ -45,6 +45,9 @@ db-check: ## Verify DB owners, per-service isolation and the read-only report ro
 
 gateway-check: ## Verify gateway routing, request ids and the booking rate limit (:8080)
 	./scripts/check-gateway.sh
+
+fe-dev: ## Vite dev server on http://localhost:5173 (proxies /api to the gateway on :8080)
+	cd frontend && npm install && npm run dev
 
 test: ## Run all Python tests
 	$(PY) -m pytest

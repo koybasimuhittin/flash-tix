@@ -90,6 +90,14 @@ services:
         condition: service_healthy
     healthcheck: *service-healthcheck
 
+  frontend:
+    build: ./frontend
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   gateway:
     build: ./gateway
     ports:

@@ -46,10 +46,23 @@ describe("api", () => {
     expect(err.message).toBe("field required; too long");
   });
 
-  it("turns the gateway's non-JSON 429 into a slow-down message", async () => {
-    respond(429, "<html>429 Too Many Requests</html>", "text/html");
+  it.each([
+    [429, "RATE_LIMITED", /Slow down/],
+    [502, "UPSTREAM_UNAVAILABLE", /not reachable/],
+    [503, "SERVICE_UNAVAILABLE", /busy or restarting/],
+    [504, "UPSTREAM_TIMEOUT", /took too long/],
+  ])("maps the gateway's %i %s to a readable message", async (status, code, message) => {
+    respond(status, { detail: { code } });
     const err = await failure(api.get("/api/booking/me"));
-    expect(errorMessage(err)).toBe("Too many requests. Slow down and try again in a moment.");
+    expect(err.code).toBe(code);
+    expect(errorMessage(err)).toMatch(message);
+  });
+
+  it("falls back to a generic message when the body is not JSON", async () => {
+    respond(500, "Internal Server Error", "text/plain");
+    const err = await failure(api.get("/api/events"));
+    expect(err.code).toBeNull();
+    expect(errorMessage(err)).toBe("Something went wrong (HTTP 500). Try again.");
   });
 
   it("logs out on 401 when a token was sent", async () => {

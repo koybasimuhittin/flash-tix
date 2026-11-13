@@ -43,6 +43,34 @@ server {
         return 200 "ok\n";
     }
 
+    # Errors the gateway produces itself get the same JSON shape as the services' errors, so
+    # clients handle every error the same way. Errors returned by a service pass through as-is
+    # (proxy_intercept_errors stays off). The server-level X-Request-ID header applies here too.
+    error_page 429 = @rate_limited;
+    error_page 502 = @upstream_unavailable;
+    error_page 503 = @service_unavailable;
+    error_page 504 = @upstream_timeout;
+
+    location @rate_limited {
+        default_type application/json;
+        return 429 '{"detail":{"code":"RATE_LIMITED"}}';
+    }
+
+    location @upstream_unavailable {
+        default_type application/json;
+        return 502 '{"detail":{"code":"UPSTREAM_UNAVAILABLE"}}';
+    }
+
+    location @service_unavailable {
+        default_type application/json;
+        return 503 '{"detail":{"code":"SERVICE_UNAVAILABLE"}}';
+    }
+
+    location @upstream_timeout {
+        default_type application/json;
+        return 504 '{"detail":{"code":"UPSTREAM_TIMEOUT"}}';
+    }
+
     # proxy_pass with a variable and no URI part forwards the original path unchanged
     # (/api/auth/login stays /api/auth/login). Upstreams are host:port from GATEWAY_*_UPSTREAM:
     # the microservices by default, all three pointed at the monolith in monolith mode.

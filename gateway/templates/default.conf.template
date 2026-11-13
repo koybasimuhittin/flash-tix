@@ -44,26 +44,27 @@ server {
     }
 
     # proxy_pass with a variable and no URI part forwards the original path unchanged
-    # (/api/auth/login stays /api/auth/login).
+    # (/api/auth/login stays /api/auth/login). Upstreams are host:port from GATEWAY_*_UPSTREAM:
+    # the microservices by default, all three pointed at the monolith in monolith mode.
     location /api/auth/ {
-        set $auth_upstream http://auth-service:8000;
+        set $auth_upstream http://${GATEWAY_AUTH_UPSTREAM};
         proxy_pass $auth_upstream;
     }
 
     location /api/events {
-        set $catalog_upstream http://catalog-service:8000;
+        set $catalog_upstream http://${GATEWAY_CATALOG_UPSTREAM};
         proxy_pass $catalog_upstream;
     }
 
     location /api/booking/ {
         limit_req zone=booking_per_user burst=${BOOKING_RATE_BURST} nodelay;
         limit_req_status 429;
-        set $booking_upstream http://booking-service:8000;
+        set $booking_upstream http://${GATEWAY_BOOKING_UPSTREAM};
         proxy_pass $booking_upstream;
     }
 
     location / {
-        set $frontend_upstream http://frontend:80;
+        set $frontend_upstream http://${GATEWAY_FRONTEND_UPSTREAM};
         proxy_pass $frontend_upstream;
     }
 }
